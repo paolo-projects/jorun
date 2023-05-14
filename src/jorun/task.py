@@ -1,6 +1,7 @@
 from typing import TypedDict, List, Literal, Optional, Union, Dict
 from dataclasses import dataclass
 
+
 class TaskBuildException(Exception):
     pass
 
