@@ -93,7 +93,7 @@ it will wait for the first task to complete before launching the second task
 
 ## Reference
 
-### YAML Configuration file**
+### YAML Configuration file
 
 - `main_task: str`: the name of the task to be executed  
 - `tasks: Dict[str, Task]`: a mapping between task names and the [task configuration](#task_configuration)
