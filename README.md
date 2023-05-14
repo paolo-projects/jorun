@@ -2,6 +2,12 @@
 
 Jorun is a task runner written in python, supporting windows and linux and configurable through a YML file
 
+## Install
+
+```shell
+pip install jorun
+```
+
 ## Configuration
 
 ```yml
