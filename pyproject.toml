@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jorun"
+version = "0.0.6"
+authors = [
+  { name="Paolo Infante", email="info@paoloinfante.it" },
+]
+description = "A customizable task runner"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pyyaml"
+]
+
+[project.scripts]
+jorun = "jorun.main:main"
+
+[project.urls]
+"Homepage" = "https://github.com/paolo-projects/jorun"
+"Bug Tracker" = "https://github.com/paolo-projects/jorun/issues"
