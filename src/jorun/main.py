@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import time
+from threading import Lock
 from typing import List
 
 from .configuration import load_config
@@ -14,11 +15,14 @@ parser.add_argument("configuration_file", help="The yml configuration file to ru
 parser.add_argument("--level", help="The log level (DEBUG, INFO, ...)", default="INFO", type=str)
 
 running_tasks: List[TaskRunner] = []
+running_tasks_lock = Lock()
 
 
 def run_task(task: TaskNode):
     t = TaskRunner(task)
-    running_tasks.append(t)
+
+    with running_tasks_lock:
+        running_tasks.append(t)
 
     def cb():
         logger.debug(f"Task {task.task['name']} completed")
@@ -50,8 +54,11 @@ def main():
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        for t in running_tasks:
-            t.stop()
+        with running_tasks_lock:
+            for i in reversed(range(len(running_tasks))):
+                t = running_tasks[i]
+                t.stop()
+                running_tasks.pop(i)
 
 
 if __name__ == "__main__":
