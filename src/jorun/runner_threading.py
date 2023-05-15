@@ -5,7 +5,7 @@ import re
 import subprocess
 from typing import Optional, Callable
 
-from .logger import subprocess_logger
+from .logger import subprocess_logger, logger
 from .task import TaskNode, DockerTask, ShellTask
 
 OUTPUT_READ_INTERVAL = 0.015
@@ -61,11 +61,17 @@ class TaskRunner:
 
     def _await_completion(self):
         try:
-            while self._running and not self._process.stdout.closed:
+            while self._running and self._process.poll() is None and not self._process.stdout.closed:
                 line = self._process.stdout.readline().decode('utf-8')
                 if line:
                     subprocess_logger.info(line, extra={"subprocess": self._task.task['name']})
                 time.sleep(OUTPUT_READ_INTERVAL)
+
+                pending = self._process.stdout.read().decode('utf-8')
+                if pending:
+                    for line in pending.split("\n"):
+                        if line:
+                            subprocess_logger.info(line, extra={"subprocess": self._task.task['name']})
         except:
             pass
 
@@ -110,6 +116,12 @@ class TaskRunner:
             stderr_file = subprocess.STDOUT if shell_opts.get('pattern_in_stderr') else subprocess.PIPE
             stderr_redirect = shell_opts.get('pattern_in_stderr', False)
 
+            out_cmd = shell_opts['command']
+            if isinstance(out_cmd, list):
+                out_cmd = " ".join(out_cmd)
+
+            logger.debug(f"Running command: {out_cmd}")
+
             self._process = subprocess.Popen(
                 shell_opts["command"],
                 cwd=shell_opts.get("working_directory"),
@@ -127,15 +139,17 @@ class TaskRunner:
                        *(docker_opts.get("docker_arguments") or [])]
 
             for env_key, env_value in (docker_opts.get("environment") or {}).items():
-                env_value_s = env_value.replace('"', '\\"')
+                env_value_s = str(env_value).replace('"', '\\"')
                 command.append("-e")
-                command.append(f'{env_key}="{env_value_s}"')
+                command.append(f'{env_key}={env_value_s}')
 
             command.append(docker_opts["image"])
             command.extend(docker_opts.get("docker_command") or [])
 
             stderr_file = subprocess.STDOUT if docker_opts.get('pattern_in_stderr') else subprocess.PIPE
             stderr_redirect = docker_opts.get('pattern_in_stderr', False)
+
+            logger.debug(f"Running command: {' '.join(command)}")
 
             self._process = subprocess.Popen(
                 command,

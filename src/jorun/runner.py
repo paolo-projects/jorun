@@ -107,7 +107,7 @@ class TaskRunner:
                        *(docker_opts.get("docker_arguments") or [])]
 
             for env_key, env_value in (docker_opts.get("environment") or {}).items():
-                env_value_s = env_value.replace('"', '\\"')
+                env_value_s = str(env_value).replace('"', '\\"')
                 command.append("-e")
                 command.append(f'{env_key}="{env_value_s}"')
 
