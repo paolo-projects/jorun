@@ -1,4 +1,5 @@
 import subprocess
+from asyncio.subprocess import Process
 from typing import Callable, Optional
 
 from ..handler.base import BaseTaskHandler
@@ -10,10 +11,10 @@ class GroupTaskHandler(BaseTaskHandler):
     def task_type(self) -> str:
         return "group"
 
-    def execute(self, options: TaskOptions, completion_callback: Callable, stderr_redirect: bool) \
-            -> Optional[subprocess.Popen]:
+    async def execute(self, options: TaskOptions, completion_callback: Callable, stderr_redirect: bool) \
+            -> Optional[Process]:
         completion_callback()
         return None
 
-    def on_exit(self, options: TaskOptions, process: subprocess.Popen):
+    def on_exit(self, options: TaskOptions, process: Process):
         pass

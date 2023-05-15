@@ -1,5 +1,5 @@
 import abc
-import subprocess
+from asyncio.subprocess import Process
 from typing import Callable, Optional
 
 from ..task import TaskOptions
@@ -12,10 +12,10 @@ class BaseTaskHandler(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def execute(self, options: TaskOptions, completion_callback: Callable, stderr_redirect: bool) \
-            -> Optional[subprocess.Popen]:
+    async def execute(self, options: TaskOptions, completion_callback: Callable, stderr_redirect: bool) \
+            -> Optional[Process]:
         pass
 
     @abc.abstractmethod
-    def on_exit(self, options: TaskOptions, process: subprocess.Popen):
+    def on_exit(self, options: TaskOptions, process: Process):
         pass

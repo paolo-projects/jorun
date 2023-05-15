@@ -1,4 +1,6 @@
+import asyncio
 import subprocess
+from asyncio.subprocess import Process
 from typing import Callable, Optional
 
 from ..handler.base import BaseTaskHandler
@@ -16,8 +18,8 @@ class DockerTaskHandler(BaseTaskHandler):
     def task_type(self) -> str:
         return "docker"
 
-    def execute(self, options: DockerTask, completion_callback: Callable, stderr_redirect: bool) \
-            -> Optional[subprocess.Popen]:
+    async def execute(self, options: DockerTask, completion_callback: Callable, stderr_redirect: bool) \
+            -> Optional[Process]:
         command = ["docker", "run", "--name", options["container_name"],
                    *(options.get("docker_arguments") or [])]
 
@@ -33,10 +35,10 @@ class DockerTaskHandler(BaseTaskHandler):
 
         logger.debug(f"Running command: {' '.join(command)}")
 
-        process = subprocess.Popen(
-            command,
+        process = await asyncio.create_subprocess_exec(
+            command[0],
+            *command[1:],
             cwd=options.get("working_directory"),
-            shell=False,
             stdout=subprocess.PIPE,
             stderr=stderr_file,
             stdin=subprocess.DEVNULL)
@@ -44,7 +46,7 @@ class DockerTaskHandler(BaseTaskHandler):
         self._stop_on_exit = options.get("stop_at_exit", False)
         return process
 
-    def on_exit(self, options: DockerTask, process: subprocess.Popen):
+    def on_exit(self, options: DockerTask, process: Process):
         if self._stop_on_exit:
             subprocess.run([
                 "docker",

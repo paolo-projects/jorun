@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse
+import asyncio
 import time
 from threading import Lock
 from typing import List
@@ -19,7 +20,6 @@ parser.add_argument("configuration_file", help="The yml configuration file to ru
 parser.add_argument("--level", help="The log level (DEBUG, INFO, ...)", default="INFO", type=str)
 
 running_tasks: List[TaskRunner] = []
-running_tasks_lock = Lock()
 
 task_handlers = [
     ShellTaskHandler(),
@@ -28,11 +28,9 @@ task_handlers = [
 ]
 
 
-def run_task(task: TaskNode):
+async def run_task(task: TaskNode):
     t = TaskRunner(task, task_handlers)
-
-    with running_tasks_lock:
-        running_tasks.append(t)
+    running_tasks.append(t)
 
     def cb():
         logger.debug(f"Task {task.task['name']} completed")
@@ -40,10 +38,10 @@ def run_task(task: TaskNode):
         if len(task.dependencies) > 0:
             logger.debug(f"Launching task {task.task['name']} dependencies")
             for dep in task.dependencies:
-                run_task(dep)
+                asyncio.create_task(run_task(dep))
 
     logger.debug(f"Running task {task.task['name']}")
-    t.start(cb)
+    asyncio.create_task(t.start(cb))
 
 
 def main():
@@ -58,17 +56,15 @@ def main():
     logger.debug("Building dependencies tree")
     dep_tree = build_task_tree(config["main_task"], list(config["tasks"].values()))
 
-    run_task(dep_tree)
-
     try:
-        while True:
-            time.sleep(1)
+        loop = asyncio.new_event_loop()
+        loop.create_task(run_task(dep_tree))
+        loop.run_forever()
     except KeyboardInterrupt:
-        with running_tasks_lock:
-            for i in reversed(range(len(running_tasks))):
-                t = running_tasks[i]
-                t.stop()
-                running_tasks.pop(i)
+        for i in reversed(range(len(running_tasks))):
+            t = running_tasks[i]
+            t.stop()
+            running_tasks.pop(i)
 
 
 if __name__ == "__main__":
