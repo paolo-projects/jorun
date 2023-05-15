@@ -4,8 +4,12 @@ import time
 from threading import Lock
 from typing import List
 
+from .handler.group import GroupTaskHandler
+from .handler.docker import DockerTaskHandler
+from .handler.shell import ShellTaskHandler
+
 from .configuration import load_config
-from .runner_threading import TaskRunner
+from .runner import TaskRunner
 from .task import build_task_tree, TaskNode
 from .logger import logger, subprocess_logger
 
@@ -17,9 +21,15 @@ parser.add_argument("--level", help="The log level (DEBUG, INFO, ...)", default=
 running_tasks: List[TaskRunner] = []
 running_tasks_lock = Lock()
 
+task_handlers = [
+    ShellTaskHandler(),
+    DockerTaskHandler(),
+    GroupTaskHandler()
+]
+
 
 def run_task(task: TaskNode):
-    t = TaskRunner(task)
+    t = TaskRunner(task, task_handlers)
 
     with running_tasks_lock:
         running_tasks.append(t)

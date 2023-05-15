@@ -6,16 +6,17 @@ class TaskBuildException(Exception):
     pass
 
 
-class ShellTask(TypedDict):
+class TaskOptions(TypedDict):
+    pass
+
+
+class ShellTask(TaskOptions):
     command: Union[str, List[str]]
-    run_mode: Literal["wait_completion", "indefinite"]
-    completion_pattern: Optional[str]
-    pattern_in_stderr: Optional[bool]
     working_directory: Optional[str]
     environment: Optional[Dict[str, str]]
 
 
-class DockerTask(TypedDict):
+class DockerTask(TaskOptions):
     container_name: str
     image: str
     docker_arguments: Optional[List[str]]
@@ -23,9 +24,6 @@ class DockerTask(TypedDict):
     environment: Optional[Dict[str, str]]
     working_directory: Optional[str]
     stop_at_exit: bool
-    run_mode: Literal["wait_completion", "indefinite"]
-    completion_pattern: Optional[str]
-    pattern_in_stderr: Optional[bool]
 
 
 class Task(TypedDict):
@@ -33,6 +31,9 @@ class Task(TypedDict):
     type: Literal["shell", "docker", "group"]
     shell: Optional[ShellTask]
     docker: Optional[DockerTask]
+    run_mode: Literal["wait_completion", "indefinite"]
+    completion_pattern: Optional[str]
+    pattern_in_stderr: Optional[bool]
     depends: Optional[List[str]]
 
 
