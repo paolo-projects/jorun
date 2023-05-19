@@ -40,8 +40,8 @@ tasks:
       stop_at_exit: true
       environment:
         POSTGRES_PASSWORD: test
-      completion_pattern: .*database system is ready to accept connections.*
-      pattern_in_stderr: true
+    completion_pattern: .*database system is ready to accept connections.*
+    pattern_in_stderr: true
   redis:
     type: docker
     docker:
@@ -50,8 +50,8 @@ tasks:
       docker_arguments:
         - "--rm"
       stop_at_exit: true
-      completion_pattern: .*Ready to accept connections.*
-      pattern_in_stderr: true
+    completion_pattern: .*Ready to accept connections.*
+    pattern_in_stderr: true
     depends:
       - db
   test:
@@ -104,13 +104,13 @@ it will wait for the first task to complete before launching the second task
 - `shell: Optional[ShellTask]`: if *type* is **shell**, the [shell configuration](#shell_configuration)
 - `docker: Optional[DockerTask]`: if *type* is **docker**, the [docker configuration](#docker_configuration)
 - `depends: Optional[List[str]]`: an optional list of task names this task depends upon
+- `run_mode: Literal["wait_completion", "indefinite"]`: **wait_completion** will wait for the task to finish before launching the next one, **indefinite** will launch the next one immediately
+- `completion_pattern: Optional[str]`: if the *run_mode* is **wait_completion**, a pattern that if matched with a line will start the next dependent task(s)
+- `pattern_in_stderr: Optional[bool]`: whether to search for the pattern in the error output
 
 #### <a name="shell_configuration"></a> Shell configuration
 
 - `command: Union[str, List[str]]`: the command to run, can be a string or a list of command arguments 
-- `run_mode: Literal["wait_completion", "indefinite"]`: **wait_completion** will wait for the task to finish before launching the next one, **indefinite** will launch the next one immediately
-- `completion_pattern: Optional[str]`: if the *run_mode* is **wait_completion**, a pattern that if matched with a line will start the next dependent task(s)  
-- `pattern_in_stderr: Optional[bool]`: whether to search for the pattern in the error output
 - `working_directory: Optional[str]`: the working directory of the command
 - `environment: Optional[Dict[str, str]]`: a mapping with the environment variables to pass to the command
 
@@ -123,6 +123,3 @@ it will wait for the first task to complete before launching the second task
 - `environment: Optional[Dict[str, str]]`: env variables to be passed to the docker container
 - `working_directory: Optional[str]`: a working directory for the docker command to be run from
 - `stop_at_exit: bool`: will stop the container when the task is closed
-- `run_mode: Literal["wait_completion", "indefinite"]`: **wait_completion** will wait for the task to finish before launching the next one, **indefinite** will launch the next one immediately
-- `completion_pattern: Optional[str]`: if the *run_mode* is **wait_completion**, a pattern that if matched with a line will start the next dependent task(s)
-- `pattern_in_stderr: Optional[bool]`: whether to search for the pattern in the error output
