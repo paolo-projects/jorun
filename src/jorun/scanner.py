@@ -1,6 +1,6 @@
 import asyncio
-import contextlib
 import re
+import traceback
 from asyncio.subprocess import Process
 from typing import Callable, Optional
 
@@ -66,7 +66,7 @@ class AsyncScanner:
                         self._completion_callback()
                         self._completion_callback = None
                         return await self._print_stdout(task_name)
-        except:
+        except Exception:
             pass
 
         if not pattern_matched:
