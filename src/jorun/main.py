@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import asyncio
-import time
-from threading import Lock
-from typing import List
+from typing import List, Set
 
 from .handler.group import GroupTaskHandler
 from .handler.docker import DockerTaskHandler
@@ -20,6 +18,7 @@ parser.add_argument("configuration_file", help="The yml configuration file to ru
 parser.add_argument("--level", help="The log level (DEBUG, INFO, ...)", default="INFO", type=str)
 
 running_tasks: List[TaskRunner] = []
+async_tasks: Set[asyncio.Task] = set()
 
 task_handlers = [
     ShellTaskHandler(),
@@ -38,10 +37,14 @@ async def run_task(task: TaskNode):
         if len(task.dependencies) > 0:
             logger.debug(f"Launching task {task.task['name']} dependencies")
             for dep in task.dependencies:
-                asyncio.create_task(run_task(dep))
+                async_t_inner = asyncio.create_task(run_task(dep))
+                async_tasks.add(async_t_inner)
+                async_t_inner.add_done_callback(async_tasks.discard)
 
     logger.debug(f"Running task {task.task['name']}")
-    asyncio.create_task(t.start(cb))
+    async_t = asyncio.create_task(t.start(cb))
+    async_tasks.add(async_t)
+    async_t.add_done_callback(async_tasks.discard)
 
 
 def main():
@@ -56,15 +59,24 @@ def main():
     logger.debug("Building dependencies tree")
     dep_tree = build_task_tree(config["main_task"], list(config["tasks"].values()))
 
+    main_task = None
+    loop = asyncio.new_event_loop()
+
     try:
-        loop = asyncio.new_event_loop()
-        loop.create_task(run_task(dep_tree))
+        main_task = loop.create_task(run_task(dep_tree))
         loop.run_forever()
     except KeyboardInterrupt:
         for i in reversed(range(len(running_tasks))):
+            if main_task:
+                main_task.cancel()
+            for t in async_tasks:
+                t.cancel()
+
             t = running_tasks[i]
             t.stop()
             running_tasks.pop(i)
+
+            loop.stop()
 
 
 if __name__ == "__main__":

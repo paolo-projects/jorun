@@ -1,8 +1,10 @@
 import asyncio
+import contextlib
 import re
 from asyncio.subprocess import Process
 from typing import Callable, Optional
 
+from .errors import TaskRunException
 from .logger import subprocess_logger, subprocess_logger_err
 
 
@@ -38,32 +40,64 @@ class AsyncScanner:
 
     async def _print_and_scan_stdout(self, pattern: str, task_name: str):
         reg = re.compile(pattern)
+        pattern_matched = False
 
-        while self._process.returncode is None:
-            line_b = await self._readline(self._process.stdout, self._read_timeout)
+        try:
+            while self._process.returncode is None:
+                line_b = await self._readline(self._process.stdout, self._read_timeout)
 
-            if line_b is not None:
-                line = line_b.decode('utf-8')
-                subprocess_logger.info(line, extra={'subprocess': task_name})
-                if reg.match(line) and self._completion_callback:
-                    self._completion_callback()
-                    self._completion_callback = None
-                    return await self._print_stdout(task_name)
+                if line_b is not None:
+                    line = line_b.decode('utf-8', errors='ignore')
+                    subprocess_logger.info(line, extra={'subprocess': task_name})
+                    if reg.match(line) and self._completion_callback:
+                        pattern_matched = True
+
+                        self._completion_callback()
+                        self._completion_callback = None
+                        return await self._print_stdout(task_name)
+
+            if not pattern_matched:
+                while line_b := await self._process.stdout.readline():
+                    line = line_b.decode('utf-8', errors='ignore')
+                    subprocess_logger.info(line, extra={'subprocess': task_name})
+                    if reg.match(line) and self._completion_callback:
+                        pattern_matched = True
+
+                        self._completion_callback()
+                        self._completion_callback = None
+                        return await self._print_stdout(task_name)
+        except:
+            pass
+
+        if not pattern_matched:
+            raise TaskRunException(f"Could not match given pattern on '{task_name}' before process exit")
 
     async def _print_stdout(self, task_name: str):
-        while self._process.returncode is None:
-            line_b = await self._readline(self._process.stdout, self._read_timeout)
+        try:
+            while self._process.returncode is None:
+                line_b = await self._readline(self._process.stdout, self._read_timeout)
 
-            if line_b is not None:
-                subprocess_logger.info(line_b.decode('utf-8'), extra={'subprocess': task_name})
+                if line_b is not None:
+                    subprocess_logger.info(line_b.decode('utf-8', errors='ignore'), extra={'subprocess': task_name})
 
-        if self._completion_callback:
-            self._completion_callback()
-            self._completion_callback = None
+            while line_b := await self._process.stdout.readline():
+                subprocess_logger.info(line_b.decode('utf-8', errors='ignore'), extra={'subprocess': task_name})
+
+            if self._completion_callback:
+                self._completion_callback()
+                self._completion_callback = None
+        except:
+            pass
 
     async def _print_stderr(self, task_name: str):
-        while self._process.returncode is None:
-            line_b = await self._readline(self._process.stderr, self._read_timeout)
+        try:
+            while self._process.returncode is None:
+                line_b = await self._readline(self._process.stderr, self._read_timeout)
 
-            if line_b is not None:
-                subprocess_logger_err.info(line_b.decode('utf-8'), extra={'subprocess': task_name})
+                if line_b is not None:
+                    subprocess_logger_err.info(line_b.decode('utf-8', errors='ignore'), extra={'subprocess': task_name})
+
+            while line_b := await self._process.stderr.readline():
+                subprocess_logger_err.info(line_b.decode('utf-8', errors='ignore'), extra={'subprocess': task_name})
+        except:
+            pass

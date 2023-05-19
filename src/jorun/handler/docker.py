@@ -18,7 +18,7 @@ class DockerTaskHandler(BaseTaskHandler):
     def task_type(self) -> str:
         return "docker"
 
-    async def execute(self, options: DockerTask, completion_callback: Callable, stderr_redirect: bool) \
+    async def execute(self, options: Optional[DockerTask], completion_callback: Callable, stderr_redirect: bool) \
             -> Optional[Process]:
         command = ["docker", "run", "--name", options["container_name"],
                    *(options.get("docker_arguments") or [])]

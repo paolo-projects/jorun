@@ -1,10 +1,11 @@
+import asyncio
 import time
 from asyncio.subprocess import Process
 from typing import Optional, Callable, List
 
 from .handler.base import BaseTaskHandler
 from .scanner import AsyncScanner
-from .task import TaskNode
+from .task import TaskNode, TaskOptions
 
 OUTPUT_READ_INTERVAL = 0.015
 
@@ -39,22 +40,27 @@ class TaskRunner:
             self._process.terminate()
 
     async def start(self, completion_callback: Callable):
-        self._completion_callback = completion_callback
-        t = self._task.task
+        try:
+            self._completion_callback = completion_callback
+            t = self._task.task
 
-        stderr_redirect = t.get('pattern_in_stderr', False)
+            stderr_redirect = t.get('pattern_in_stderr', False)
 
-        self._process = await self._handler.execute(t[self._handler.task_type], self._completion_callback,
-                                                    stderr_redirect)
-        if not self._process:
-            self._running = False
-            return
+            task_options: Optional[TaskOptions] = t.get(self._handler.task_type)
 
-        run_mode = t.get("run_mode") or "await_completion"
-        completion_pattern = t.get("completion_pattern")
-        self._scanner = AsyncScanner(self._process, self._completion_callback, not stderr_redirect)
+            self._process = await self._handler.execute(task_options, self._completion_callback,
+                                                        stderr_redirect)
+            if not self._process:
+                self._running = False
+                return
 
-        if run_mode == "await_completion" and completion_pattern:
-            await self._scanner.print_and_scan(completion_pattern, self._task.task['name'])
-        else:
-            await self._scanner.print(self._task.task['name'])
+            run_mode = t.get("run_mode") or "await_completion"
+            completion_pattern = t.get("completion_pattern")
+            self._scanner = AsyncScanner(self._process, self._completion_callback, not stderr_redirect)
+
+            if run_mode == "await_completion" and completion_pattern:
+                await self._scanner.print_and_scan(completion_pattern, self._task.task['name'])
+            else:
+                await self._scanner.print(self._task.task['name'])
+        except asyncio.CancelledError:
+            pass

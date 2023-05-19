@@ -12,7 +12,7 @@ class BaseTaskHandler(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def execute(self, options: TaskOptions, completion_callback: Callable, stderr_redirect: bool) \
+    async def execute(self, options: Optional[TaskOptions], completion_callback: Callable, stderr_redirect: bool) \
             -> Optional[Process]:
         pass
 

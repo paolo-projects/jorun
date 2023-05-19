@@ -1,3 +1,4 @@
+import os
 import subprocess
 import asyncio
 from asyncio.subprocess import Process
@@ -13,7 +14,7 @@ class ShellTaskHandler(BaseTaskHandler):
     def task_type(self) -> str:
         return "shell"
 
-    async def execute(self, options: ShellTask, completion_callback: Callable, stderr_redirect: bool) \
+    async def execute(self, options: Optional[ShellTask], completion_callback: Callable, stderr_redirect: bool) \
             -> Optional[Process]:
         stderr_file = subprocess.STDOUT if stderr_redirect else subprocess.PIPE
 
@@ -23,7 +24,11 @@ class ShellTaskHandler(BaseTaskHandler):
 
         logger.debug(f"Running command: {out_cmd}")
         envs = options.get("environment")
-        env_vars = {k: str(v) for k, v in envs.items()} if envs else None
+        env_vars = None
+
+        if envs:
+            env_vars = dict(os.environ)
+            env_vars.update({k: str(v) for k, v in envs.items()})
 
         if not isinstance(options["command"], list):
             process = await asyncio.create_subprocess_shell(

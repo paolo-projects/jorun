@@ -1,9 +1,7 @@
 from typing import TypedDict, List, Literal, Optional, Union, Dict
 from dataclasses import dataclass
 
-
-class TaskBuildException(Exception):
-    pass
+from jorun.errors import TaskBuildException
 
 
 class TaskOptions(TypedDict):
