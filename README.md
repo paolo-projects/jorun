@@ -102,11 +102,9 @@ If you declare one or more dependencies, the task will not run until all the dep
 The options in **bold** are mandatory, while the others can be omitted.
 
 ### YAML Configuration file
-| Option    | Description                                                                    |
-|-----------|--------------------------------------------------------------------------------|
-| **tasks** | a mapping between task names and the [task configuration](#task_configuration) |
-
-- `tasks: Dict[str, Task]`: a mapping between task names and the [task configuration](#task_configuration)
+| Option               | Description                                                                    |
+|----------------------|--------------------------------------------------------------------------------|
+| **tasks** _(object)_ | a mapping between task names and the [task configuration](#task_configuration) |
 
 #### <a name="task_configuration"></a> Task configuration
 
