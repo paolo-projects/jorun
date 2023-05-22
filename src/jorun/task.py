@@ -36,7 +36,6 @@ class Task(TypedDict):
 
 
 class TasksConfiguration(TypedDict):
-    main_task: str
     tasks: Dict[str, Task]
 
 
