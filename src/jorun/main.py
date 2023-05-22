@@ -86,15 +86,15 @@ def main():
         run_missing_tasks()
         loop.run_forever()
     except KeyboardInterrupt:
-        for i in reversed(range(len(running_tasks))):
-            for t in async_tasks:
-                t.cancel()
+        for t in async_tasks:
+            t.cancel()
 
+        for i in reversed(range(len(running_tasks))):
             t = running_tasks[i]
             t.stop()
             running_tasks.pop(i)
 
-            loop.stop()
+        loop.stop()
 
 
 if __name__ == "__main__":
