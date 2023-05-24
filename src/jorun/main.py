@@ -18,7 +18,7 @@ from .handler.shell import ShellTaskHandler
 
 from .configuration import load_config
 from .runner import TaskRunner
-from .types.task import Task
+from .types.task import Task, TasksConfiguration
 from .logger import logger, NewlineStreamHandler
 
 parser = argparse.ArgumentParser(prog="jorun", description="A smart task runner", add_help=True)
@@ -96,7 +96,7 @@ def main():
         log_handler = NewlineStreamHandler(sys.stdout)
 
     logger.debug("Loading configuration file")
-    config = load_config(program_arguments.configuration_file)
+    config: TasksConfiguration = load_config(program_arguments.configuration_file)
 
     missing_tasks = config["tasks"].copy()
     loop = asyncio.get_event_loop()
@@ -108,7 +108,7 @@ def main():
 
         ui_tasks = [t_name for t_name, t_val in missing_tasks.items() if t_val["type"] != "group"]
 
-        ui_application = UiApplication(ui_tasks, on_app_stop, task_streams_queue)
+        ui_application = UiApplication(ui_tasks, on_app_stop, task_streams_queue, config.get("gui"))
         ui_application.start_ui()
 
     try:

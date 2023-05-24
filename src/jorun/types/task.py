@@ -16,8 +16,13 @@ class Task(TypedDict):
     depends: Optional[List[str]]
 
 
+class GuiConfiguration(TypedDict):
+    columns: int
+
+
 class TasksConfiguration(TypedDict):
     tasks: Dict[str, Task]
+    gui: Optional[GuiConfiguration]
 
 
 @dataclass

@@ -23,6 +23,8 @@ Usage
 #   --level LEVEL         The log level (DEBUG, INFO, ...)
 #   --file-output FILE_OUTPUT
 #                         Log tasks output to files, one per task. This option lets you specify the directory of the log files
+#   --gui                 Run with a graphical interface
+
 
 jorun ./conf.yml
 ```
@@ -30,6 +32,8 @@ jorun ./conf.yml
 ## Configuration
 
 ```yml
+gui:
+  columns: 4
 tasks:
   db:
     type: docker
@@ -97,6 +101,15 @@ If you declare one or more dependencies, the task will not run until all the dep
 - _the completion pattern is matched_ (the regex pattern matched a line of the task output), if you set a **completion_pattern**
 - _launched_, if you set the **run_mode** to `indefinite`
 
+## GUI
+
+Through the `--gui` command line option you can run *Jorun* with a graphical interface.
+The GUI is still a prototype, but will let you keep track of the task logs individually and
+even filter the log rows by a substring.
+
+The YML configuration supports a **gui** section where you can specify the number of columns
+you want the form divided into.
+
 ## Reference
 
 The options in **bold** are mandatory, while the others can be omitted.
@@ -105,6 +118,13 @@ The options in **bold** are mandatory, while the others can be omitted.
 | Option               | Description                                                                    |
 |----------------------|--------------------------------------------------------------------------------|
 | **tasks** _(object)_ | a mapping between task names and the [task configuration](#task_configuration) |
+| **gui** _(object)_   | the [gui configuration](#gui_configuration)                                    |
+
+#### <a name="gui_configuration"></a> GUI configuration
+
+| Option              | Description                                                   |
+|---------------------|---------------------------------------------------------------|
+| columns _(integer)_ | the number of columns you want the GUI interface divided into |
 
 #### <a name="task_configuration"></a> Task configuration
 
