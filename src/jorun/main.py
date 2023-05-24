@@ -113,19 +113,22 @@ def main():
         logger.error("An error occurred")
         traceback.print_exception(e)
     finally:
-        logger.info("Killing running tasks...")
+        logger.info("Terminating the async loop...")
+        if loop.is_running():
+            loop.stop()
+
+        logger.info("Killing gui...")
         ui_application.stop_ui()
 
+        logger.info("Killing async tasks...")
         for t in async_tasks:
             t.cancel()
 
+        logger.info("Killing running tasks...")
         for i in reversed(range(len(running_tasks))):
             t = running_tasks[i]
             t.stop()
             running_tasks.pop(i)
-
-        if loop.is_running():
-            loop.stop()
 
 
 if __name__ == "__main__":

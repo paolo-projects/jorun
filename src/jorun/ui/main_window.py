@@ -25,6 +25,8 @@ class MainWindow(QMainWindow, DataUpdateSignalEmitter):
     def __init__(self, tasks: List[str], palette: BaseColorPalette, total_columns=3):
         super(MainWindow, self).__init__()
 
+        self.signals.app_terminated.connect(self.close)
+
         self._tasks = tasks
         self._total_columns = total_columns
         self._task_widgets = {}
@@ -62,3 +64,6 @@ class MainWindow(QMainWindow, DataUpdateSignalEmitter):
     # noinspection PyUnresolvedReferences
     def dispatch_stream_record(self, record: LogRecord):
         self.signals.data_received.emit(record)
+
+    def dispatch_app_termination(self):
+        self.signals.app_terminated.emit()

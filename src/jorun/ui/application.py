@@ -7,6 +7,7 @@ from typing import List, Callable, Optional
 from PyQt6.QtWidgets import QApplication
 
 from .main_window import MainWindow
+from ..logger import logger
 
 
 class UiApplication:
@@ -23,8 +24,11 @@ class UiApplication:
     _stream_dequeue_thread: Thread
     _stream_dequeue_running: bool
 
+    _trigger_close_handler: bool
+
     def __init__(self, tasks: List[str], close_handler: Callable, task_streams_queue: Queue):
         self._window = None
+        self._trigger_close_handler = True
         self._task_list = tasks
         self._close_handler = close_handler
         self._streams_queue = task_streams_queue
@@ -68,6 +72,10 @@ class UiApplication:
 
     def stop_ui(self):
         if self._running:
-            self._app.quit()
-            self._ui_thread.join()
-            self._running = False
+            self._trigger_close_handler = False
+            self._window.dispatch_app_termination()
+
+            try:
+                self._ui_thread.join(timeout=3)
+            except RuntimeError:
+                logger.warning("Couldn't stop the UI thread, ignoring it")
