@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from jorun.palette.base import BaseColorPalette
+from .base import BaseColorPalette
 
 
 @dataclass

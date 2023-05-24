@@ -1,3 +1,5 @@
 
 
 APP_NAME = "JoRun"
+
+SCROLL_TOLERANCE = 4

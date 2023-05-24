@@ -8,10 +8,9 @@ from tinyioc import inject
 from .data_signals import DataUpdateSignalEmitter
 from ..palette.base import BaseColorPalette
 
+from .. import constants
 
 class TaskPanel(QGroupBox):
-    SCROLL_TOLERANCE = 4
-
     _layout: QVBoxLayout
     _actions_group_widget: QWidget
     _actions_group_layout: QHBoxLayout
@@ -54,6 +53,7 @@ class TaskPanel(QGroupBox):
         self._task_label.setMaximumWidth(80)
         self._task_label.setStyleSheet(f"""
             color: {palette.foreground};
+            font-weight: bold;
         """)
         self._actions_group_layout.addWidget(self._task_label)
 
@@ -82,7 +82,7 @@ class TaskPanel(QGroupBox):
             scroll_bottom = False
 
             if self._output_stream_edit_text.verticalScrollBar().value() > \
-                    self._output_stream_edit_text.verticalScrollBar().maximum() - self.SCROLL_TOLERANCE:
+                    self._output_stream_edit_text.verticalScrollBar().maximum() - constants.SCROLL_TOLERANCE:
                 scroll_bottom = True
 
             self._output_stream += record.message

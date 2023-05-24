@@ -1,5 +1,5 @@
 import yaml
-from .task import TasksConfiguration
+from .types.task import TasksConfiguration
 
 
 def load_config(file_name: str) -> TasksConfiguration:

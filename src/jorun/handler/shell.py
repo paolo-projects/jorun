@@ -2,11 +2,17 @@ import os
 import subprocess
 import asyncio
 from asyncio.subprocess import Process
-from typing import Callable, Optional
+from typing import Callable, Optional, List, Union, Dict
 
-from ..task import TaskOptions, ShellTask
+from ..types.options import TaskOptions
 from .base import BaseTaskHandler
 from ..logger import logger
+
+
+class ShellTask(TaskOptions):
+    command: Union[str, List[str]]
+    working_directory: Optional[str]
+    environment: Optional[Dict[str, str]]
 
 
 class ShellTaskHandler(BaseTaskHandler):

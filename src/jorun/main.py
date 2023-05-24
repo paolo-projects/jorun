@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 import argparse
 import asyncio
+import logging
+import sys
 import traceback
 from logging.handlers import QueueHandler
 from queue import Queue
 from typing import List, Set, Dict
 from tinyioc import register_instance
 
-from jorun.palette.base import BaseColorPalette
-from jorun.palette.darcula import DarculaColorPalette
+from .palette.base import BaseColorPalette
+from .palette.darcula import DarculaColorPalette
 from .ui.application import UiApplication
 from .handler.group import GroupTaskHandler
 from .handler.docker import DockerTaskHandler
@@ -16,8 +18,8 @@ from .handler.shell import ShellTaskHandler
 
 from .configuration import load_config
 from .runner import TaskRunner
-from .task import Task
-from .logger import logger
+from .types.task import Task
+from .logger import logger, NewlineStreamHandler
 
 parser = argparse.ArgumentParser(prog="jorun", description="A smart task runner", add_help=True)
 
@@ -25,6 +27,7 @@ parser.add_argument("configuration_file", help="The yml configuration file to ru
 parser.add_argument("--level", help="The log level (DEBUG, INFO, ...)", default="INFO", type=str)
 parser.add_argument("--file-output", help="Log tasks output to files, one per task. "
                                           "This option lets you specify the directory of the log files", type=str)
+parser.add_argument("--gui", help="Run with a graphical interface", action='store_true')
 
 running_tasks: List[TaskRunner] = []
 async_tasks: Set[asyncio.Task] = set()
@@ -41,7 +44,8 @@ task_handlers = [
 ]
 
 task_streams_queue = Queue()
-task_streams_queue_handler = QueueHandler(task_streams_queue)
+
+log_handler: logging.Handler
 
 ui_application: UiApplication
 
@@ -59,7 +63,8 @@ def run_missing_tasks():
 
 
 def run_task(task: Task):
-    t = TaskRunner(task, task_handlers, program_arguments.file_output, program_arguments.level, task_streams_queue_handler)
+    t = TaskRunner(task, task_handlers, program_arguments.file_output, program_arguments.level,
+                   log_handler)
     running_tasks.append(t)
 
     def cb():
@@ -76,33 +81,35 @@ def run_task(task: Task):
 
 
 def main():
-    global missing_tasks, program_arguments, ui_application
+    global missing_tasks, program_arguments, ui_application, log_handler
 
     register_instance(DarculaColorPalette(), register_for=BaseColorPalette)
 
     program_arguments = parser.parse_args()
-
     logger.setLevel(program_arguments.level)
+
+    if program_arguments.gui:
+        logger.debug("Using graphical interface")
+        log_handler = QueueHandler(task_streams_queue)
+    else:
+        logger.debug("Using console output")
+        log_handler = NewlineStreamHandler(sys.stdout)
 
     logger.debug("Loading configuration file")
     config = load_config(program_arguments.configuration_file)
 
-    logger.debug("Building dependencies tree")
-    # no dependency tree. we now support multiple dependencies
-    # dep_tree = build_task_tree(config["main_task"], list(config["tasks"].values()))
-
     missing_tasks = config["tasks"].copy()
-
     loop = asyncio.get_event_loop()
 
-    def on_app_stop():
-        logger.info("Main window closed")
-        loop.stop()
+    if program_arguments.gui:
+        def on_app_stop():
+            logger.info("Main window closed")
+            loop.stop()
 
-    ui_tasks = [t_name for t_name, t_val in missing_tasks.items() if t_val["type"] != "group"]
+        ui_tasks = [t_name for t_name, t_val in missing_tasks.items() if t_val["type"] != "group"]
 
-    ui_application = UiApplication(ui_tasks, on_app_stop, task_streams_queue)
-    ui_application.start_ui()
+        ui_application = UiApplication(ui_tasks, on_app_stop, task_streams_queue)
+        ui_application.start_ui()
 
     try:
         run_missing_tasks()
@@ -117,8 +124,9 @@ def main():
         if loop.is_running():
             loop.stop()
 
-        logger.info("Killing gui...")
-        ui_application.stop_ui()
+        if program_arguments.gui:
+            logger.info("Killing gui...")
+            ui_application.stop_ui()
 
         logger.info("Killing async tasks...")
         for t in async_tasks:

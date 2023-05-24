@@ -1,11 +1,21 @@
 import asyncio
 import subprocess
 from asyncio.subprocess import Process
-from typing import Callable, Optional
+from typing import Callable, Optional, Dict, List
 
 from ..handler.base import BaseTaskHandler
 from ..logger import logger
-from ..task import DockerTask
+from ..types.options import TaskOptions
+
+
+class DockerTask(TaskOptions):
+    container_name: str
+    image: str
+    docker_arguments: Optional[List[str]]
+    docker_command: Optional[List[str]]
+    environment: Optional[Dict[str, str]]
+    working_directory: Optional[str]
+    stop_at_exit: bool
 
 
 class DockerTaskHandler(BaseTaskHandler):

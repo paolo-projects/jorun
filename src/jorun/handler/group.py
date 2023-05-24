@@ -1,9 +1,8 @@
-import subprocess
 from asyncio.subprocess import Process
 from typing import Callable, Optional
 
 from ..handler.base import BaseTaskHandler
-from ..task import TaskOptions
+from ..types.options import TaskOptions
 
 
 class GroupTaskHandler(BaseTaskHandler):

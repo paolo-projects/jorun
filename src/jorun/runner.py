@@ -1,17 +1,15 @@
 import asyncio
 import logging
 import os.path
-import sys
 from asyncio.subprocess import Process
 from datetime import datetime
 from logging import Logger
-from logging.handlers import QueueHandler
 from typing import Optional, Callable, List, Union
 
 from .handler.base import BaseTaskHandler
-from .logger import NewlineStreamHandler
 from .scanner import AsyncScanner
-from .task import TaskOptions, Task
+from .types.options import TaskOptions
+from .types.task import Task
 
 OUTPUT_READ_INTERVAL = 0.015
 
@@ -24,19 +22,19 @@ class TaskRunner:
     _process: Optional[Process]
     _completion_callback: Optional[Callable]
     _scanner: AsyncScanner
-    _queue_handler: QueueHandler
+    _log_handler: logging.Handler
 
     _logger: Logger
     _err_logger: Logger
 
     def __init__(self, task: Task, handlers: List[BaseTaskHandler], file_output_dir: Optional[str],
-                 log_level: Union[int, str], queue_handler: QueueHandler):
+                 log_level: Union[int, str], log_handler: logging.Handler):
         self._task = task
         self._handlers = handlers
         self._process = None
         self._running = True
         self._completion_callback = None
-        self._queue_handler = queue_handler
+        self._log_handler = log_handler
 
         self._handler = next(h for h in self._handlers if h.task_type == task['type'])
 
@@ -48,8 +46,8 @@ class TaskRunner:
         self._err_logger = logging.Logger(task["name"])
         self._err_logger.setLevel(log_level)
 
-        self._logger.addHandler(queue_handler)
-        self._err_logger.addHandler(queue_handler)
+        self._logger.addHandler(log_handler)
+        self._err_logger.addHandler(log_handler)
 
         if file_output_dir and os.path.isdir(file_output_dir):
             now_time = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")

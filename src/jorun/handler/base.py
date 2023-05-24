@@ -2,7 +2,7 @@ import abc
 from asyncio.subprocess import Process
 from typing import Callable, Optional
 
-from ..task import TaskOptions
+from ..types.options import TaskOptions
 
 
 class BaseTaskHandler(abc.ABC):

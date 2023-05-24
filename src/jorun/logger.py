@@ -6,6 +6,10 @@ class NewlineStreamHandler(logging.StreamHandler):
     def emit(self, record):
         try:
             msg = self.format(record)
+
+            if hasattr(record, 'subprocess'):
+                msg = f"[{record.subprocess}]: {msg}"
+
             stream = self.stream
             # issue 35046: merged two stream.writes into one.
             final_message = msg if msg.endswith(self.terminator) else msg + self.terminator
