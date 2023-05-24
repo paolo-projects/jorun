@@ -1,9 +1,15 @@
 #!/usr/bin/env python
 import argparse
 import asyncio
-import sys
+import traceback
+from logging.handlers import QueueHandler
+from queue import Queue
 from typing import List, Set, Dict
+from tinyioc import register_instance
 
+from jorun.palette.base import BaseColorPalette
+from jorun.palette.darcula import DarculaColorPalette
+from .ui.application import UiApplication
 from .handler.group import GroupTaskHandler
 from .handler.docker import DockerTaskHandler
 from .handler.shell import ShellTaskHandler
@@ -34,6 +40,11 @@ task_handlers = [
     GroupTaskHandler()
 ]
 
+task_streams_queue = Queue()
+task_streams_queue_handler = QueueHandler(task_streams_queue)
+
+ui_application: UiApplication
+
 
 def run_missing_tasks():
     tasks_to_run: List[Task] = [t for t in missing_tasks.values() if
@@ -48,7 +59,7 @@ def run_missing_tasks():
 
 
 def run_task(task: Task):
-    t = TaskRunner(task, task_handlers, program_arguments.file_output, program_arguments.level)
+    t = TaskRunner(task, task_handlers, program_arguments.file_output, program_arguments.level, task_streams_queue_handler)
     running_tasks.append(t)
 
     def cb():
@@ -65,7 +76,9 @@ def run_task(task: Task):
 
 
 def main():
-    global missing_tasks, program_arguments
+    global missing_tasks, program_arguments, ui_application
+
+    register_instance(DarculaColorPalette(), register_for=BaseColorPalette)
 
     program_arguments = parser.parse_args()
 
@@ -82,10 +95,27 @@ def main():
 
     loop = asyncio.get_event_loop()
 
+    def on_app_stop():
+        logger.info("Main window closed")
+        loop.stop()
+
+    ui_tasks = [t_name for t_name, t_val in missing_tasks.items() if t_val["type"] != "group"]
+
+    ui_application = UiApplication(ui_tasks, on_app_stop, task_streams_queue)
+    ui_application.start_ui()
+
     try:
         run_missing_tasks()
         loop.run_forever()
     except KeyboardInterrupt:
+        logger.info("Requested termination")
+    except Exception as e:
+        logger.error("An error occurred")
+        traceback.print_exception(e)
+    finally:
+        logger.info("Killing running tasks...")
+        ui_application.stop_ui()
+
         for t in async_tasks:
             t.cancel()
 
@@ -94,7 +124,8 @@ def main():
             t.stop()
             running_tasks.pop(i)
 
-        loop.stop()
+        if loop.is_running():
+            loop.stop()
 
 
 if __name__ == "__main__":
