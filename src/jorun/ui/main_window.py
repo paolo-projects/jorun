@@ -44,6 +44,7 @@ class MainWindow(QMainWindow, DataUpdateSignalEmitter):
             background-color: {palette.background};
         """)
         self.setCentralWidget(self._central_widget)
+        self.setContentsMargins(4, 4, 4, 4)
 
         col = 0
         for task in self._tasks:
