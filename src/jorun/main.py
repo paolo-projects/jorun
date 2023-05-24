@@ -27,7 +27,8 @@ parser.add_argument("configuration_file", help="The yml configuration file to ru
 parser.add_argument("--level", help="The log level (DEBUG, INFO, ...)", default="INFO", type=str)
 parser.add_argument("--file-output", help="Log tasks output to files, one per task. "
                                           "This option lets you specify the directory of the log files", type=str)
-parser.add_argument("--gui", help="Run with a graphical interface", action='store_true')
+parser.add_argument("--gui", help="Force running with the graphical interface", action='store_true')
+parser.add_argument("--no-gui", help="Force running without the graphical interface", action='store_true')
 
 running_tasks: List[TaskRunner] = []
 async_tasks: Set[asyncio.Task] = set()
@@ -88,27 +89,30 @@ def main():
     program_arguments = parser.parse_args()
     logger.setLevel(program_arguments.level)
 
-    if program_arguments.gui:
+    logger.debug("Loading configuration file")
+    config: TasksConfiguration = load_config(program_arguments.configuration_file)
+
+    gui_config = config.get("gui")
+    show_gui = not program_arguments.no_gui and (program_arguments.gui or gui_config)
+
+    if show_gui:
         logger.debug("Using graphical interface")
         log_handler = QueueHandler(task_streams_queue)
     else:
         logger.debug("Using console output")
         log_handler = NewlineStreamHandler(sys.stdout)
 
-    logger.debug("Loading configuration file")
-    config: TasksConfiguration = load_config(program_arguments.configuration_file)
-
     missing_tasks = config["tasks"].copy()
     loop = asyncio.get_event_loop()
 
-    if program_arguments.gui:
+    if show_gui:
         def on_app_stop():
             logger.info("Main window closed")
             loop.stop()
 
         ui_tasks = [t_name for t_name, t_val in missing_tasks.items() if t_val["type"] != "group"]
 
-        ui_application = UiApplication(ui_tasks, on_app_stop, task_streams_queue, config.get("gui"))
+        ui_application = UiApplication(ui_tasks, on_app_stop, task_streams_queue, gui_config)
         ui_application.start_ui()
 
     try:
@@ -124,7 +128,7 @@ def main():
         if loop.is_running():
             loop.stop()
 
-        if program_arguments.gui:
+        if show_gui:
             logger.info("Killing gui...")
             ui_application.stop_ui()
 

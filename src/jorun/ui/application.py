@@ -2,14 +2,14 @@ import sys
 import time
 from queue import Queue, Empty
 from threading import Thread
-from typing import List, Callable, Optional
+from typing import List, Callable, Optional, Dict
 
 from PyQt6.QtWidgets import QApplication
 
 from .main_window import MainWindow
 from .. import constants
 from ..logger import logger
-from ..types.task import GuiConfiguration
+from ..types.task import PaneConfiguration
 
 
 class UiApplication:
@@ -18,7 +18,7 @@ class UiApplication:
 
     _app: QApplication
     _window: Optional[MainWindow]
-    _config: Optional[GuiConfiguration]
+    _config: Optional[Dict[str, PaneConfiguration]]
 
     _task_list: List[str]
     _streams_queue: Queue
@@ -30,7 +30,7 @@ class UiApplication:
     _trigger_close_handler: bool
 
     def __init__(self, tasks: List[str], close_handler: Callable, task_streams_queue: Queue,
-                 config: Optional[GuiConfiguration]):
+                 config: Optional[Dict[str, PaneConfiguration]]):
         self._window = None
         self._trigger_close_handler = True
         self._config = config
@@ -68,11 +68,7 @@ class UiApplication:
         self._app = QApplication(sys.argv)
         self._app.setQuitOnLastWindowClosed(True)
 
-        columns = constants.DEFAULT_COLUMNS
-        if self._config and self._config.get('columns'):
-            columns = self._config.get('columns')
-
-        self._window = MainWindow(self._task_list, total_columns=columns)
+        self._window = MainWindow(self._task_list, gui_config=self._config)
         self._window.show()
 
         self._app.exec()

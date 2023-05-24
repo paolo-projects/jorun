@@ -19,12 +19,12 @@ Usage
 #   configuration_file    The yml configuration file to run
 # 
 # options:
-#   -h, --help            show this help message and exit
-#   --level LEVEL         The log level (DEBUG, INFO, ...)
-#   --file-output FILE_OUTPUT
-#                         Log tasks output to files, one per task. This option lets you specify the directory of the log files
-#   --gui                 Run with a graphical interface
-
+#  -h, --help            show this help message and exit
+#  --level LEVEL         The log level (DEBUG, INFO, ...)
+#  --file-output FILE_OUTPUT
+#                        Log tasks output to files, one per task. This option lets you specify the directory of the log files
+#  --gui                 Force running with the graphical interface
+#  --no-gui              Force running without the graphical interface
 
 jorun ./conf.yml
 ```
@@ -33,7 +33,15 @@ jorun ./conf.yml
 
 ```yml
 gui:
-  columns: 4
+  services:
+    tasks:
+      - db
+      - redis
+  terminals:
+    tasks:
+      - test_1
+      - test_2
+      - test_3
 tasks:
   db:
     type: docker
@@ -103,12 +111,13 @@ If you declare one or more dependencies, the task will not run until all the dep
 
 ## GUI
 
-Through the `--gui` command line option you can run *Jorun* with a graphical interface.
+If you run **Jorun** with the `--gui` command line option, or if you specify the **gui** option
+in the yaml configuration you can start the tool with a graphical interface.
 The GUI is still a prototype, but will let you keep track of the task logs individually and
-even filter the log rows by a substring.
+even filter the log rows.
 
-The YML configuration supports a **gui** section where you can specify the number of columns
-you want the form divided into.
+The **gui** section in the YML configuration is where you can specify the panes you want displayed,
+and for each pane you can set the tasks that belong to it and the maximum number of columns visible in the pane.
 
 ## Reference
 
@@ -118,13 +127,14 @@ The options in **bold** are mandatory, while the others can be omitted.
 | Option               | Description                                                                    |
 |----------------------|--------------------------------------------------------------------------------|
 | **tasks** _(object)_ | a mapping between task names and the [task configuration](#task_configuration) |
-| **gui** _(object)_   | the [gui configuration](#gui_configuration)                                    |
+| **gui** _(object)_   | a mapping between pane names and the [pane configuration](#pane_configuration) |
 
-#### <a name="gui_configuration"></a> GUI configuration
+#### <a name="pane_configuration"></a> Pane configuration
 
-| Option              | Description                                                   |
-|---------------------|---------------------------------------------------------------|
-| columns _(integer)_ | the number of columns you want the GUI interface divided into |
+| Option                  | Description                                          |
+|-------------------------|------------------------------------------------------|
+| **tasks** _(array)_     | the tasks that will be displayed in this pane        |
+| **columns** _(integer)_ | the number of columns you want the pane divided into |
 
 #### <a name="task_configuration"></a> Task configuration
 

@@ -10,10 +10,11 @@ from ..palette.base import BaseColorPalette
 
 from .. import constants
 
+
 class TaskPanel(QGroupBox):
     _layout: QVBoxLayout
     _actions_group_widget: QWidget
-    _actions_group_layout: QHBoxLayout
+    _actions_group_layout: QVBoxLayout
     _output_stream_edit_text: QPlainTextEdit
 
     _output_stream: str
@@ -24,11 +25,8 @@ class TaskPanel(QGroupBox):
     _filter_edit_text: QLineEdit
 
     @inject()
-    def __init__(self, parent: Optional[QWidget], task_name: str, signal_emitter: DataUpdateSignalEmitter,
-                 palette: BaseColorPalette):
+    def __init__(self, parent: Optional[QWidget], task_name: str, palette: BaseColorPalette):
         super(TaskPanel, self).__init__(parent)
-
-        signal_emitter.signals.data_received.connect(self.append_text)
 
         self._task_name = task_name
         self._output_stream = ""
@@ -42,7 +40,8 @@ class TaskPanel(QGroupBox):
         """)
 
         self._actions_group_widget = QWidget(self)
-        self._actions_group_layout = QHBoxLayout(self)
+        self._actions_group_layout = QVBoxLayout(self)
+        self._actions_group_layout.setContentsMargins(0, 0, 0, 0)
         self._actions_group_widget.setLayout(self._actions_group_layout)
 
         self._layout.addWidget(self._actions_group_widget)
@@ -78,19 +77,18 @@ class TaskPanel(QGroupBox):
 
     # noinspection PyUnresolvedReferences
     def append_text(self, record: LogRecord):
-        if record.subprocess == self._task_name:
-            scroll_bottom = False
+        scroll_bottom = False
 
-            if self._output_stream_edit_text.verticalScrollBar().value() > \
-                    self._output_stream_edit_text.verticalScrollBar().maximum() - constants.SCROLL_TOLERANCE:
-                scroll_bottom = True
+        if self._output_stream_edit_text.verticalScrollBar().value() > \
+                self._output_stream_edit_text.verticalScrollBar().maximum() - constants.SCROLL_TOLERANCE:
+            scroll_bottom = True
 
-            self._output_stream += record.message
-            self._update_output_edit_text()
+        self._output_stream += record.message
+        self._update_output_edit_text()
 
-            if scroll_bottom:
-                self._output_stream_edit_text.verticalScrollBar().setValue(
-                    self._output_stream_edit_text.verticalScrollBar().maximum())
+        if scroll_bottom:
+            self._output_stream_edit_text.verticalScrollBar().setValue(
+                self._output_stream_edit_text.verticalScrollBar().maximum())
 
     def _update_output_edit_text(self):
         filter_input = self._filter_edit_text.text()

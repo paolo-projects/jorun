@@ -1,36 +1,28 @@
 from logging import LogRecord
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QMainWindow, QSplitter
+from PyQt6.QtWidgets import QMainWindow, QTabWidget
 
 from tinyioc import inject
 
 from .data_signals import DataUpdateSignalEmitter, MainWindowSignals
-from .task_panel import TaskPanel
+from .pane import TasksPane
 from .. import constants
 from ..palette.base import BaseColorPalette
+from ..types.task import PaneConfiguration
 
 
 class MainWindow(QMainWindow, DataUpdateSignalEmitter):
-    _central_widget: QSplitter
-    _tasks: List[str]
-    _total_columns: int
-    _task_widgets: Dict[str, TaskPanel]
-    _splitters: List[QSplitter]
-
+    _tab_widget: QTabWidget
+    _panes: List[TasksPane]
     signals = MainWindowSignals()
 
     @inject()
-    def __init__(self, tasks: List[str], palette: BaseColorPalette, total_columns=3):
+    def __init__(self, tasks: List[str], palette: BaseColorPalette, gui_config: Optional[Dict[str, PaneConfiguration]]):
         super(MainWindow, self).__init__()
 
         self.signals.app_terminated.connect(self.close)
-
-        self._tasks = tasks
-        self._total_columns = total_columns
-        self._task_widgets = {}
-        self._splitters = []
+        self._panes = []
 
         self.setStyleSheet(f"""
             background-color: {palette.background};
@@ -39,28 +31,52 @@ class MainWindow(QMainWindow, DataUpdateSignalEmitter):
 
         self.setWindowTitle(constants.APP_NAME)
 
-        self._central_widget = QSplitter(Qt.Orientation.Vertical, self)
-        self._central_widget.setStyleSheet(f"""
-            background-color: {palette.background};
+        self._tab_widget = QTabWidget(self)
+        self._tab_widget.setStyleSheet(f"""
+            QTabWidget::pane
+            {{
+                background: {palette.selection};
+            }}
+            
+            QTabBar::tab {{
+                background: {palette.selection};
+                color: {palette.foreground};
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                padding: 6px;
+                margin: 0 1px 0 1px;
+            }}
+            
+            QTabBar::tab:selected {{
+                font-weight: bold;
+            }}
         """)
-        self.setCentralWidget(self._central_widget)
-        self.setContentsMargins(4, 4, 4, 4)
 
-        col = 0
-        for task in self._tasks:
-            if col % self._total_columns == 0:
-                last_splitter = QSplitter(Qt.Orientation.Horizontal, self._central_widget)
-                last_splitter.setStyleSheet(f"""
-                    background-color: {palette.background};
-                """)
-                self._central_widget.addWidget(last_splitter)
-                self._splitters.append(last_splitter)
+        self.setCentralWidget(self._tab_widget)
 
-            task_panel = TaskPanel(self._splitters[-1], task, self)
-            self._splitters[-1].addWidget(task_panel)
-            self._task_widgets[task] = task_panel
+        tasks_bucket = set(tasks)
 
-            col += 1
+        if gui_config:
+            for pane_name, pane_options in gui_config.items():
+                pane = TasksPane(None, pane_options.get("tasks"), columns=pane_options.get("columns") or 3)
+                pane.setAutoFillBackground(True)
+                self._tab_widget.addTab(pane, pane_name)
+                self._panes.append(pane)
+
+                for t in pane_options["tasks"]:
+                    tasks_bucket.discard(t)
+
+        if len(tasks_bucket) > 0:
+            extra_pane = TasksPane(None, list(tasks_bucket))
+            extra_pane.setAutoFillBackground(True)
+            self._tab_widget.addTab(extra_pane, "-")
+            self._panes.append(extra_pane)
+
+        self.signals.data_received.connect(self._handle_stream_record)
+
+    def _handle_stream_record(self, record: LogRecord):
+        for p in self._panes:
+            p.dispatch_log_record(record)
 
     # noinspection PyUnresolvedReferences
     def dispatch_stream_record(self, record: LogRecord):
