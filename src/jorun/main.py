@@ -108,7 +108,8 @@ def main():
     if show_gui:
         def on_app_stop():
             logger.info("Main window closed")
-            loop.stop()
+            if loop.is_running():
+                loop.stop()
 
         ui_tasks = [t_name for t_name, t_val in missing_tasks.items() if t_val["type"] != "group"]
 
@@ -139,8 +140,12 @@ def main():
         logger.info("Killing running tasks...")
         for i in reversed(range(len(running_tasks))):
             t = running_tasks[i]
-            t.stop()
-            running_tasks.pop(i)
+            try:
+                t.stop()
+            except:
+                pass
+            finally:
+                running_tasks.pop(i)
 
 
 if __name__ == "__main__":

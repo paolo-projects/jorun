@@ -1,9 +1,8 @@
 from logging import LogRecord
 from typing import Optional, List, Dict
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QWidget, QSplitter, QVBoxLayout
-
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QSplitter
 from tinyioc import inject
 
 from ..palette.base import BaseColorPalette

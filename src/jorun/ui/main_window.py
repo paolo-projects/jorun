@@ -1,8 +1,8 @@
 from logging import LogRecord
 from typing import Dict, List, Optional
 
-from PyQt6.QtWidgets import QMainWindow, QTabWidget
-
+from PySide6.QtCore import Slot
+from PySide6.QtWidgets import QMainWindow, QTabWidget
 from tinyioc import inject
 
 from .data_signals import DataUpdateSignalEmitter, MainWindowSignals
@@ -74,6 +74,7 @@ class MainWindow(QMainWindow, DataUpdateSignalEmitter):
 
         self.signals.data_received.connect(self._handle_stream_record)
 
+    @Slot()
     def _handle_stream_record(self, record: LogRecord):
         for p in self._panes:
             p.dispatch_log_record(record)

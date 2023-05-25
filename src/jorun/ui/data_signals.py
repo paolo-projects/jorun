@@ -1,9 +1,9 @@
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 
 class MainWindowSignals(QObject):
-    data_received = pyqtSignal(object)
-    app_terminated = pyqtSignal()
+    data_received = Signal(object)
+    app_terminated = Signal()
 
 
 class DataUpdateSignalEmitter:

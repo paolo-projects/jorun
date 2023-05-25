@@ -4,10 +4,9 @@ from queue import Queue, Empty
 from threading import Thread
 from typing import List, Callable, Optional, Dict
 
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 from .main_window import MainWindow
-from .. import constants
 from ..logger import logger
 from ..types.task import PaneConfiguration
 
@@ -74,6 +73,7 @@ class UiApplication:
         self._app.exec()
         self._running = False
         self._app_quitting()
+        self._app.quit()
 
     def stop_ui(self):
         if self._running:

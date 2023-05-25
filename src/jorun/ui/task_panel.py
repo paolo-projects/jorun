@@ -1,11 +1,10 @@
 from logging import LogRecord
 from typing import Optional
 
-from PyQt6.QtWidgets import QGroupBox, QPlainTextEdit, QVBoxLayout, QSizePolicy, QHBoxLayout, QWidget, \
-    QLabel, QLineEdit
+from PySide6.QtCore import Slot
+from PySide6.QtWidgets import QGroupBox, QVBoxLayout, QWidget, QPlainTextEdit, QLabel, QLineEdit, QSizePolicy
 from tinyioc import inject
 
-from .data_signals import DataUpdateSignalEmitter
 from ..palette.base import BaseColorPalette
 
 from .. import constants
@@ -103,5 +102,6 @@ class TaskPanel(QGroupBox):
 
         self._output_stream_edit_text.setPlainText(filtered_text)
 
+    @Slot()
     def _filter_changed(self):
         self._update_output_edit_text()
