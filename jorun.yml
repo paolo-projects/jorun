@@ -1,0 +1,57 @@
+gui:
+  services:
+    tasks:
+      - db
+      - redis
+  terminals:
+    tasks:
+      - test_1
+      - test_2
+      - test_3
+tasks:
+  db:
+    type: docker
+    docker:
+      container_name: test
+      image: postgres
+      docker_arguments:
+        - "--rm"
+      stop_at_exit: true
+      environment:
+        POSTGRES_PASSWORD: test
+    completion_pattern: .*database system is ready to accept connections.*
+    pattern_in_stderr: true
+  redis:
+    type: docker
+    docker:
+      container_name: rds
+      image: redis
+      docker_arguments:
+        - "--rm"
+      stop_at_exit: true
+    completion_pattern: .*Ready to accept connections.*
+    pattern_in_stderr: true
+    depends:
+      - db
+  test:
+    type: group
+    depends:
+      - redis
+  test_1:
+    type: shell
+    shell:
+      command: echo TEST 1
+    depends:
+      - test
+  test_2:
+    type: shell
+    shell:
+      command: echo TEST 2
+    depends:
+      - test
+  test_3:
+    type: shell
+    shell:
+      command: echo TEST 3
+    depends:
+      - test

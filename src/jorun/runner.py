@@ -5,11 +5,13 @@ from asyncio.subprocess import Process
 from datetime import datetime
 from logging import Logger
 from typing import Optional, Callable, List, Union
+from tinyioc import inject
 
 from .handler.base import BaseTaskHandler
 from .scanner import AsyncScanner
 from .types.options import TaskOptions
 from .types.task import Task
+from .configuration import AppConfiguration
 
 OUTPUT_READ_INTERVAL = 0.015
 
@@ -27,10 +29,11 @@ class TaskRunner:
     _logger: Logger
     _err_logger: Logger
 
-    def __init__(self, task: Task, handlers: List[BaseTaskHandler], file_output_dir: Optional[str],
+    @inject()
+    def __init__(self, task: Task, configuration: AppConfiguration, file_output_dir: Optional[str],
                  log_level: Union[int, str], log_handler: logging.Handler):
         self._task = task
-        self._handlers = handlers
+        self._handlers = configuration.handlers
         self._process = None
         self._running = True
         self._completion_callback = None

@@ -16,9 +16,8 @@ from .handler.group import GroupTaskHandler
 from .handler.docker import DockerTaskHandler
 from .handler.shell import ShellTaskHandler
 
-from .configuration import load_config
-from .runner import TaskRunner
-from .types.task import Task, TasksConfiguration
+from .configuration import load_config, AppConfiguration
+from .types.task import TasksConfiguration
 from .logger import logger, NewlineStreamHandler
 
 parser = argparse.ArgumentParser(prog="jorun", description="A smart task runner", add_help=True)
@@ -30,77 +29,28 @@ parser.add_argument("--file-output", help="Log tasks output to files, one per ta
 parser.add_argument("--gui", help="Force running with the graphical interface", action='store_true')
 parser.add_argument("--no-gui", help="Force running without the graphical interface", action='store_true')
 
-running_tasks: List[TaskRunner] = []
-async_tasks: Set[asyncio.Task] = set()
-
-missing_tasks: Dict[str, Task] = {}
-completed_tasks: Set[str] = set()
-
 program_arguments: argparse.Namespace
-
-task_handlers = [
-    ShellTaskHandler(),
-    DockerTaskHandler(),
-    GroupTaskHandler()
-]
 
 task_streams_queue = Queue()
 
-log_handler: logging.Handler
-
 ui_application: UiApplication
-
-
-def run_missing_tasks():
-    tasks_to_run: List[Task] = [t for t in missing_tasks.values() if
-                                (not t.get("depends") or len(t["depends"]) == 0) or set(t["depends"]).issubset(
-                                    completed_tasks)]
-
-    for task in tasks_to_run:
-        missing_tasks.pop(task["name"])
-
-    for task in tasks_to_run:
-        run_task(task)
-
-
-def run_task(task: Task):
-    t = TaskRunner(task, task_handlers, program_arguments.file_output, program_arguments.level,
-                   log_handler)
-    running_tasks.append(t)
-
-    def cb():
-        logger.debug(f"Task {task['name']} completed")
-        completed_tasks.add(task["name"])
-
-        logger.debug(f"Launching task {task['name']} dependencies")
-        run_missing_tasks()
-
-    logger.debug(f"Running task {task['name']}")
-    async_t = asyncio.get_event_loop().create_task(t.start(cb))
-    async_tasks.add(async_t)
-    async_t.add_done_callback(async_tasks.discard)
 
 
 def main():
     global missing_tasks, program_arguments, ui_application, log_handler
 
     register_instance(DarculaColorPalette(), register_for=BaseColorPalette)
+    register_instance(AppConfiguration([
+        ShellTaskHandler(),
+        DockerTaskHandler(),
+        GroupTaskHandler()
+    ]))
 
     program_arguments = parser.parse_args()
     logger.setLevel(program_arguments.level)
 
     logger.debug("Loading configuration file")
     config: TasksConfiguration = load_config(program_arguments.configuration_file)
-
-    gui_config = config.get("gui")
-    show_gui = not program_arguments.no_gui and (program_arguments.gui or gui_config)
-
-    if show_gui:
-        logger.debug("Using graphical interface")
-        log_handler = QueueHandler(task_streams_queue)
-    else:
-        logger.debug("Using console output")
-        log_handler = NewlineStreamHandler(sys.stdout)
 
     missing_tasks = config["tasks"].copy()
     loop = asyncio.get_event_loop()
