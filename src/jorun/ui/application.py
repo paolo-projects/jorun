@@ -12,9 +12,6 @@ from ..types.task import PaneConfiguration
 
 
 class UiApplication:
-    _ui_thread: Thread
-    _running: bool
-
     _app: QApplication
     _window: Optional[MainWindow]
     _config: Optional[Dict[str, PaneConfiguration]]
@@ -28,29 +25,24 @@ class UiApplication:
 
     _trigger_close_handler: bool
 
-    def __init__(self, tasks: List[str], close_handler: Callable, task_streams_queue: Queue,
+    def __init__(self, tasks: List[str], task_streams_queue: Queue,
                  config: Optional[Dict[str, PaneConfiguration]]):
         self._window = None
         self._trigger_close_handler = True
         self._config = config
         self._task_list = tasks
-        self._close_handler = close_handler
         self._streams_queue = task_streams_queue
 
     def _app_quitting(self):
         self._stream_dequeue_running = False
         self._stream_dequeue_thread.join()
 
-        self._close_handler()
-
     def start_ui(self):
         self._stream_dequeue_running = True
         self._stream_dequeue_thread = Thread(target=self._dequeue_stream)
         self._stream_dequeue_thread.start()
 
-        self._running = True
-        self._ui_thread = Thread(target=self._run_ui_thread)
-        self._ui_thread.start()
+        self._run_ui_thread()
 
     def _dequeue_stream(self):
         while self._stream_dequeue_running:
@@ -73,14 +65,8 @@ class UiApplication:
         self._app.exec()
         self._running = False
         self._app_quitting()
-        self._app.quit()
 
     def stop_ui(self):
-        if self._running:
-            self._trigger_close_handler = False
-            self._window.dispatch_app_termination()
-
-            try:
-                self._ui_thread.join(timeout=3)
-            except RuntimeError:
-                logger.warning("Couldn't stop the UI thread, ignoring it")
+        if self._stream_dequeue_running:
+            self._stream_dequeue_running = False
+            self._stream_dequeue_thread.join()

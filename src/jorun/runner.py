@@ -30,8 +30,8 @@ class TaskRunner:
     _err_logger: Logger
 
     @inject()
-    def __init__(self, task: Task, configuration: AppConfiguration, file_output_dir: Optional[str],
-                 log_level: Union[int, str], log_handler: logging.Handler):
+    def __init__(self, task: Task, file_output_dir: Optional[str], log_level: Union[int, str],
+                 log_handler: logging.Handler, configuration: AppConfiguration):
         self._task = task
         self._handlers = configuration.handlers
         self._process = None
@@ -60,6 +60,10 @@ class TaskRunner:
 
             self._logger.addHandler(file_handler)
             self._err_logger.addHandler(file_handler)
+
+    @property
+    def name(self):
+        return self._task["name"]
 
     def _on_stop(self):
         self._handler.on_exit(self._task[self._handler.task_type], self._process)

@@ -1,21 +1,25 @@
-from collections.abc import Callable, Iterable, Mapping
 from threading import Thread
-from typing import List, Set, Dict
+from typing import List, Set, Dict, Optional
 import asyncio
-from tinyioc import inject
 import logging
-from queue import Queue
-import sys
 import traceback
 
-from .types.task import TasksConfiguration, Task
+from tinyioc import module, IocModule, register_instance, unregister_service
+
+from .types.task import Task
 from .runner import TaskRunner
-from .configuration import AppConfiguration
-from .logger import logger, NewlineStreamHandler
+from .logger import logger
+
+
+@module()
+class RunnerThreadModule(IocModule):
+    pass
 
 
 class RunnerThread(Thread):
-    _config: TasksConfiguration
+    _running: bool
+
+    _config: Dict[str, Task]
     _arguments: any
     _running_tasks: List[TaskRunner]
     _async_tasks: Set[asyncio.Task]
@@ -26,28 +30,19 @@ class RunnerThread(Thread):
     _log_handler: logging.Handler
     _show_gui: bool
 
-    def __init__(self, configuration: TasksConfiguration, arguments: any, ui_queue: Queue):
+    _loop: asyncio.AbstractEventLoop
+
+    def __init__(self, configuration: Dict[str, Task], arguments: any, log_handler: logging.Handler):
         super(RunnerThread, self).__init__()
 
         self._config = configuration
         self._arguments = arguments
+        self._log_handler = log_handler
         self._running_tasks = []
         self._async_tasks = set()
-        self._missing_tasks = {}
+        self._missing_tasks = configuration.copy()
         self._completed_tasks = set()
 
-
-        gui_config = configuration.get("gui")
-        self._show_gui = not arguments.no_gui and (arguments.gui or gui_config)
-
-        if self._show_gui:
-            logger.debug("Using graphical interface")
-            self._log_handler = logging.handlers.QueueHandler(ui_queue)
-        else:
-            logger.debug("Using console output")
-            self._log_handler = NewlineStreamHandler(sys.stdout)
-
-    
     def _run_missing_tasks(self):
         tasks_to_run: List[Task] = [t for t in self._missing_tasks.values() if
                                     (not t.get("depends") or len(t["depends"]) == 0) or set(t["depends"]).issubset(
@@ -59,10 +54,9 @@ class RunnerThread(Thread):
         for task in tasks_to_run:
             self._run_task(task)
 
-
     def _run_task(self, task: Task):
         t = TaskRunner(task, self._arguments.file_output, self._arguments.level,
-                    self._log_handler)
+                       self._log_handler)
         self._running_tasks.append(t)
 
         def cb():
@@ -73,53 +67,58 @@ class RunnerThread(Thread):
             self._run_missing_tasks()
 
         logger.debug(f"Running task {task['name']}")
-        async_t = asyncio.get_event_loop().create_task(t.start(cb))
+        async_t = self._loop.create_task(t.start(cb))
         self._async_tasks.add(async_t)
         async_t.add_done_callback(self._async_tasks.discard)
 
+    def _cancel_tasks(self):
+        logger.debug("Killing running tasks...")
+        for i in reversed(range(len(self._running_tasks))):
+            t = self._running_tasks[i]
+            logger.debug(f"Killing task {t.name}")
+            try:
+                t.stop()
+            except:
+                pass
+            finally:
+                self._running_tasks.pop(i)
+
+    def _cancel_async_tasks(self):
+        logger.debug("Killing async tasks...")
+        for t in self._async_tasks:
+            t.cancel()
+
     def run(self) -> None:
-        missing_tasks = self._config["tasks"].copy()
-        loop = asyncio.get_event_loop()
+        self._running = True
 
-        if self._show_gui:
-            def on_app_stop():
-                logger.info("Main window closed")
-                if loop.is_running():
-                    loop.stop()
-
-            ui_tasks = [t_name for t_name, t_val in missing_tasks.items() if t_val["type"] != "group"]
-
-            ui_application = UiApplication(ui_tasks, on_app_stop, task_streams_queue, gui_config)
-            ui_application.start_ui()
+        self._loop = asyncio.new_event_loop()
+        register_instance(self._loop, module=RunnerThreadModule, register_for=asyncio.AbstractEventLoop)
 
         try:
             self._run_missing_tasks()
-            loop.run_forever()
+            self._loop.run_forever()
         except KeyboardInterrupt:
             logger.info("Requested termination")
         except Exception as e:
             logger.error("An error occurred")
             traceback.print_exception(e)
         finally:
-            logger.info("Terminating the async loop...")
-            if loop.is_running():
-                loop.stop()
+            unregister_service(asyncio.AbstractEventLoop, module=RunnerThreadModule)
 
-            if show_gui:
-                logger.info("Killing gui...")
-                ui_application.stop_ui()
+            self._cancel_async_tasks()
+            self._cancel_tasks()
 
-            logger.info("Killing async tasks...")
-            for t in async_tasks:
-                t.cancel()
+            logger.debug("Terminating the async loop...")
+            if self._loop.is_running():
+                self._loop.stop()
 
-            logger.info("Killing running tasks...")
-            for i in reversed(range(len(running_tasks))):
-                t = running_tasks[i]
-                try:
-                    t.stop()
-                except:
-                    pass
-                finally:
-                    running_tasks.pop(i)
-        
+            self._loop.close()
+
+        self._running = False
+
+    def stop(self, timeout: Optional[float] = None):
+        if self._running:
+            self._cancel_async_tasks()
+            self._cancel_tasks()
+            self._loop.stop()
+            self.join(timeout)

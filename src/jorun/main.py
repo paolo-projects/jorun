@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 import argparse
 import asyncio
-import logging
 import sys
 import traceback
 from logging.handlers import QueueHandler
 from queue import Queue
-from typing import List, Set, Dict
 from tinyioc import register_instance
 
+from jorun.runner_thread import RunnerThread
 from .palette.base import BaseColorPalette
 from .palette.darcula import DarculaColorPalette
 from .ui.application import UiApplication
@@ -37,7 +36,7 @@ ui_application: UiApplication
 
 
 def main():
-    global missing_tasks, program_arguments, ui_application, log_handler
+    global program_arguments, ui_application
 
     register_instance(DarculaColorPalette(), register_for=BaseColorPalette)
     register_instance(AppConfiguration([
@@ -53,49 +52,41 @@ def main():
     config: TasksConfiguration = load_config(program_arguments.configuration_file)
 
     missing_tasks = config["tasks"].copy()
-    loop = asyncio.get_event_loop()
+
+    tasks_config = config.get("tasks")
+
+    if not tasks_config:
+        raise RuntimeError("No tasks to run found")
+
+    gui_config = config.get("gui")
+    show_gui = not program_arguments.no_gui and (program_arguments.gui or gui_config)
 
     if show_gui:
-        def on_app_stop():
-            logger.info("Main window closed")
-            if loop.is_running():
-                loop.stop()
+        logger.debug("Using graphical interface")
+        log_handler = QueueHandler(task_streams_queue)
+    else:
+        logger.debug("Using console output")
+        log_handler = NewlineStreamHandler(sys.stdout)
 
-        ui_tasks = [t_name for t_name, t_val in missing_tasks.items() if t_val["type"] != "group"]
-
-        ui_application = UiApplication(ui_tasks, on_app_stop, task_streams_queue, gui_config)
-        ui_application.start_ui()
+    tasks_thread = RunnerThread(tasks_config, program_arguments, log_handler)
+    tasks_thread.start()
 
     try:
-        run_missing_tasks()
-        loop.run_forever()
+        if show_gui:
+            ui_tasks = [t_name for t_name, t_val in missing_tasks.items() if t_val["type"] != "group"]
+
+            ui_application = UiApplication(ui_tasks, task_streams_queue, gui_config)
+            ui_application.start_ui()
+        else:
+            tasks_thread.join()
     except KeyboardInterrupt:
-        logger.info("Requested termination")
+        logger.debug("Requested termination")
     except Exception as e:
         logger.error("An error occurred")
         traceback.print_exception(e)
     finally:
-        logger.info("Terminating the async loop...")
-        if loop.is_running():
-            loop.stop()
-
-        if show_gui:
-            logger.info("Killing gui...")
-            ui_application.stop_ui()
-
-        logger.info("Killing async tasks...")
-        for t in async_tasks:
-            t.cancel()
-
-        logger.info("Killing running tasks...")
-        for i in reversed(range(len(running_tasks))):
-            t = running_tasks[i]
-            try:
-                t.stop()
-            except:
-                pass
-            finally:
-                running_tasks.pop(i)
+        ui_application.stop_ui()
+        tasks_thread.stop()
 
 
 if __name__ == "__main__":
