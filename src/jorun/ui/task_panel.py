@@ -1,3 +1,4 @@
+import re
 from logging import LogRecord
 from typing import Optional
 
@@ -22,11 +23,13 @@ class TaskPanel(QGroupBox):
     _task_label: QLabel
 
     _filter_edit_text: QLineEdit
+    _escape_pattern: re.Pattern
 
     @inject()
     def __init__(self, parent: Optional[QWidget], task_name: str, palette: BaseColorPalette):
         super(TaskPanel, self).__init__(parent)
 
+        self._escape_pattern = re.compile(r'(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]')
         self._task_name = task_name
         self._output_stream = ""
 
@@ -77,17 +80,25 @@ class TaskPanel(QGroupBox):
     # noinspection PyUnresolvedReferences
     def append_text(self, record: LogRecord):
         scroll_bottom = False
+        previous_scroll = self._output_stream_edit_text.verticalScrollBar().value()
 
         if self._output_stream_edit_text.verticalScrollBar().value() > \
                 self._output_stream_edit_text.verticalScrollBar().maximum() - constants.SCROLL_TOLERANCE:
             scroll_bottom = True
 
-        self._output_stream += record.message
+        message = self._escape_pattern.sub('', record.message)
+
+        self._output_stream += message
         self._update_output_edit_text()
 
         if scroll_bottom:
             self._output_stream_edit_text.verticalScrollBar().setValue(
                 self._output_stream_edit_text.verticalScrollBar().maximum())
+        else:
+            self._output_stream_edit_text.verticalScrollBar().setValue(
+                min(max(previous_scroll, self._output_stream_edit_text.verticalScrollBar().maximum()),
+                    self._output_stream_edit_text.verticalScrollBar().minimum())
+            )
 
     def _update_output_edit_text(self):
         filter_input = self._filter_edit_text.text()
