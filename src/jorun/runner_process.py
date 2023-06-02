@@ -158,5 +158,8 @@ class RunnerProcess(multiprocessing.Process):
 
     def stop(self, timeout: Optional[float] = None):
         self._pipe_emit.send(1)
-        self.join(timeout)
+        try:
+            self.join(timeout)
+        except:
+            logger.debug("Task executor process terminated abruptly")
         logger.debug("Tasks process terminated")
