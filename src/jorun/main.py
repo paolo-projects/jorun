@@ -85,8 +85,12 @@ def main():
         logger.error("An error occurred")
         traceback.print_exception(e)
     finally:
+        logger.debug("Quitting the UI")
         ui_application.stop_ui()
-        tasks_thread.stop()
+        logger.debug("Quitting the tasks")
+        tasks_thread.stop(10)
+
+    logger.debug("Terminated")
 
 
 if __name__ == "__main__":

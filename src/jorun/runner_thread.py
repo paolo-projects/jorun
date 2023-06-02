@@ -43,6 +43,8 @@ class RunnerThread(Thread):
         self._missing_tasks = configuration.copy()
         self._completed_tasks = set()
 
+        self._loop = asyncio.new_event_loop()
+
     def _run_missing_tasks(self):
         tasks_to_run: List[Task] = [t for t in self._missing_tasks.values() if
                                     (not t.get("depends") or len(t["depends"]) == 0) or set(t["depends"]).issubset(
@@ -85,13 +87,13 @@ class RunnerThread(Thread):
 
     def _cancel_async_tasks(self):
         logger.debug("Killing async tasks...")
-        for t in self._async_tasks:
+        for t in self._async_tasks.copy():
             t.cancel()
 
     def run(self) -> None:
         self._running = True
+        asyncio.set_event_loop(self._loop)
 
-        self._loop = asyncio.new_event_loop()
         register_instance(self._loop, module=RunnerThreadModule, register_for=asyncio.AbstractEventLoop)
 
         try:
@@ -108,17 +110,19 @@ class RunnerThread(Thread):
             self._cancel_async_tasks()
             self._cancel_tasks()
 
-            logger.debug("Terminating the async loop...")
             if self._loop.is_running():
+                logger.debug("Terminating the async loop...")
                 self._loop.stop()
 
+            logger.debug("Closing the async loop...")
             self._loop.close()
 
         self._running = False
 
     def stop(self, timeout: Optional[float] = None):
         if self._running:
-            self._cancel_async_tasks()
-            self._cancel_tasks()
-            self._loop.stop()
+            #self._cancel_async_tasks()
+            #self._cancel_tasks()
+            self._loop.call_soon_threadsafe(self._loop.stop)
             self.join(timeout)
+            logger.debug("Tasks thread terminated")
