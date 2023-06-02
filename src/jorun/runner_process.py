@@ -1,3 +1,8 @@
+import multiprocessing
+import queue
+import sys
+from logging.handlers import QueueHandler
+from multiprocessing.connection import Connection
 from threading import Thread
 from typing import List, Set, Dict, Optional
 import asyncio
@@ -6,9 +11,13 @@ import traceback
 
 from tinyioc import module, IocModule, register_instance, unregister_service
 
+from .configuration import AppConfiguration
+from .handler.docker import DockerTaskHandler
+from .handler.group import GroupTaskHandler
+from .handler.shell import ShellTaskHandler
 from .types.task import Task
 from .runner import TaskRunner
-from .logger import logger
+from .logger import logger, NewlineStreamHandler
 
 
 @module()
@@ -16,8 +25,10 @@ class RunnerThreadModule(IocModule):
     pass
 
 
-class RunnerThread(Thread):
+class RunnerProcess(multiprocessing.Process):
     _running: bool
+    _pipe_emit: Connection
+    _pipe_recv: Connection
 
     _config: Dict[str, Task]
     _arguments: any
@@ -27,23 +38,22 @@ class RunnerThread(Thread):
     _missing_tasks: Dict[str, Task]
     _completed_tasks: Set[str]
 
+    _queue: multiprocessing.Queue
     _log_handler: logging.Handler
     _show_gui: bool
 
     _loop: asyncio.AbstractEventLoop
 
-    def __init__(self, configuration: Dict[str, Task], arguments: any, log_handler: logging.Handler):
-        super(RunnerThread, self).__init__()
+    def __init__(self, configuration: Dict[str, Task], arguments: any, is_gui: bool,
+                 output_queue: Optional[multiprocessing.Queue]):
+        super(RunnerProcess, self).__init__()
 
+        self._show_gui = is_gui
         self._config = configuration
         self._arguments = arguments
-        self._log_handler = log_handler
-        self._running_tasks = []
-        self._async_tasks = set()
-        self._missing_tasks = configuration.copy()
-        self._completed_tasks = set()
+        self._queue = output_queue
 
-        self._loop = asyncio.new_event_loop()
+        self._pipe_recv, self._pipe_emit = multiprocessing.Pipe()
 
     def _run_missing_tasks(self):
         tasks_to_run: List[Task] = [t for t in self._missing_tasks.values() if
@@ -91,13 +101,40 @@ class RunnerThread(Thread):
             t.cancel()
 
     def run(self) -> None:
+        register_instance(AppConfiguration([
+            ShellTaskHandler(),
+            DockerTaskHandler(),
+            GroupTaskHandler()
+        ]))
+
+        self._log_handler = QueueHandler(self._queue) if self._show_gui else NewlineStreamHandler(sys.stdout)
+        self._running_tasks = []
+        self._async_tasks = set()
+        self._missing_tasks = self._config.copy()
+        self._completed_tasks = set()
+
         self._running = True
+
+        self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
 
         register_instance(self._loop, module=RunnerThreadModule, register_for=asyncio.AbstractEventLoop)
 
+        async def periodic_termination_checker():
+            while self._running:
+                if self._pipe_recv.poll():
+                    self._loop.call_soon_threadsafe(self._loop.stop)
+                    break
+
+                await asyncio.sleep(0.3)
+
         try:
             self._run_missing_tasks()
+
+            term_task = self._loop.create_task(periodic_termination_checker())
+            self._async_tasks.add(term_task)
+            term_task.add_done_callback(self._async_tasks.discard)
+
             self._loop.run_forever()
         except KeyboardInterrupt:
             logger.info("Requested termination")
@@ -120,9 +157,9 @@ class RunnerThread(Thread):
         self._running = False
 
     def stop(self, timeout: Optional[float] = None):
-        if self._running:
-            #self._cancel_async_tasks()
-            #self._cancel_tasks()
-            self._loop.call_soon_threadsafe(self._loop.stop)
+        self._pipe_emit.send(1)
+        try:
             self.join(timeout)
-            logger.debug("Tasks thread terminated")
+        except:
+            logger.debug("Task executor process terminated abruptly")
+        logger.debug("Tasks process terminated")

@@ -1,13 +1,19 @@
 import asyncio
 import logging
 import os.path
+import platform
+import signal
+import time
 from asyncio.subprocess import Process
 from datetime import datetime
 from logging import Logger
 from typing import Optional, Callable, List, Union
+
+import psutil
 from tinyioc import inject
 
 from .handler.base import BaseTaskHandler
+from .logger import logger
 from .scanner import AsyncScanner
 from .types.options import TaskOptions
 from .types.task import Task
@@ -68,10 +74,29 @@ class TaskRunner:
     def _on_stop(self):
         self._handler.on_exit(self._task[self._handler.task_type], self._process)
 
-    def stop(self):
+    def stop(self, timeout=1):
         if self._process and self._process.returncode is None:
+            logger.debug(f"Process {self.name} is alive. Killing it")
+
             self._on_stop()
-            self._process.terminate()
+            pid = self._process.pid
+
+            if platform.system() == "Windows":
+                os.kill(pid, signal.CTRL_C_EVENT)
+            else:
+                os.kill(pid, signal.SIGTERM)
+
+            timeout_left = timeout
+            while timeout_left > 0 and psutil.pid_exists(pid):
+                time.sleep(0.2)
+                timeout_left -= 0.2
+
+            if psutil.pid_exists(pid):
+                logger.debug(f"Process {self.name} still alive after {timeout}s timeout. Sending SIGKILL")
+                if platform.system() == "Windows":
+                    os.kill(pid, signal.CTRL_BREAK_EVENT)
+                else:
+                    os.kill(pid, signal.SIGKILL)
 
     async def start(self, completion_callback: Callable):
         try:

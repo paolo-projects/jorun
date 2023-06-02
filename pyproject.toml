@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "jorun"
-version = "0.1.4"
+version = "0.2.0"
 authors = [
   { name="Paolo Infante", email="info@paoloinfante.it" },
 ]
@@ -19,7 +19,8 @@ classifiers = [
 dependencies = [
     "PyYAML==6.0",
     "PySide6==6.5.0",
-    "tinyioc==0.1.4"
+    "tinyioc==0.1.4",
+    "psutil==5.9.5"
 ]
 
 [project.scripts]
