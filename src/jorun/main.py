@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 import argparse
-import asyncio
 import sys
 import traceback
 from logging.handlers import QueueHandler
-from queue import Queue
+from multiprocessing import Queue
 from tinyioc import register_instance
 
-from jorun.runner_thread import RunnerThread
+from jorun.runner_process import RunnerProcess
 from .palette.base import BaseColorPalette
 from .palette.darcula import DarculaColorPalette
 from .ui.application import UiApplication
@@ -39,11 +38,6 @@ def main():
     global program_arguments, ui_application
 
     register_instance(DarculaColorPalette(), register_for=BaseColorPalette)
-    register_instance(AppConfiguration([
-        ShellTaskHandler(),
-        DockerTaskHandler(),
-        GroupTaskHandler()
-    ]))
 
     program_arguments = parser.parse_args()
     logger.setLevel(program_arguments.level)
@@ -68,7 +62,7 @@ def main():
         logger.debug("Using console output")
         log_handler = NewlineStreamHandler(sys.stdout)
 
-    tasks_thread = RunnerThread(tasks_config, program_arguments, log_handler)
+    tasks_thread = RunnerProcess(tasks_config, program_arguments, show_gui, task_streams_queue)
     tasks_thread.start()
 
     try:
@@ -85,8 +79,9 @@ def main():
         logger.error("An error occurred")
         traceback.print_exception(e)
     finally:
-        logger.debug("Quitting the UI")
-        ui_application.stop_ui()
+        if show_gui:
+            logger.debug("Quitting the UI")
+            ui_application.stop_ui()
         logger.debug("Quitting the tasks")
         tasks_thread.stop(10)
 

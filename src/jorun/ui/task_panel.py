@@ -1,3 +1,4 @@
+import re
 from logging import LogRecord
 from typing import Optional
 
@@ -48,7 +49,6 @@ class TaskPanel(QGroupBox):
         self._task_label = QLabel(self)
         self._task_label.setText(self._task_name)
         self._task_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._task_label.setMaximumWidth(80)
         self._task_label.setStyleSheet(f"""
             color: {palette.foreground};
             font-weight: bold;
@@ -77,17 +77,23 @@ class TaskPanel(QGroupBox):
     # noinspection PyUnresolvedReferences
     def append_text(self, record: LogRecord):
         scroll_bottom = False
+        previous_scrollbar_pos = self._output_stream_edit_text.verticalScrollBar().value()
 
         if self._output_stream_edit_text.verticalScrollBar().value() > \
                 self._output_stream_edit_text.verticalScrollBar().maximum() - constants.SCROLL_TOLERANCE:
             scroll_bottom = True
 
-        self._output_stream += record.message
+        processed_message = re.sub(r'\x1b\[([0-9,A-Z]{1,2}(;[0-9]{1,2})?(;[0-9]{3})?)?[m|K]?', '', record.message)
+        self._output_stream += processed_message
         self._update_output_edit_text()
 
         if scroll_bottom:
             self._output_stream_edit_text.verticalScrollBar().setValue(
                 self._output_stream_edit_text.verticalScrollBar().maximum())
+        else:
+            self._output_stream_edit_text.verticalScrollBar().setValue(
+                min(self._output_stream_edit_text.verticalScrollBar().maximum(),
+                    max(self._output_stream_edit_text.verticalScrollBar().minimum(), previous_scrollbar_pos)))
 
     def _update_output_edit_text(self):
         filter_input = self._filter_edit_text.text()
