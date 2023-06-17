@@ -21,9 +21,14 @@ class PaneConfiguration(TypedDict):
     tasks: List[str]
 
 
+class GuiConfiguration(TypedDict):
+    panes: Optional[Dict[str, PaneConfiguration]]
+    palette: Optional[str]
+
+
 class TasksConfiguration(TypedDict):
     tasks: Dict[str, Task]
-    gui: Optional[Dict[str, PaneConfiguration]]
+    gui: Optional[GuiConfiguration]
 
 
 @dataclass

@@ -33,15 +33,17 @@ jorun ./conf.yml
 
 ```yml
 gui:
-  services:
-    tasks:
-      - db
-      - redis
-  terminals:
-    tasks:
-      - test_1
-      - test_2
-      - test_3
+  panes:
+    services:
+      tasks:
+        - db
+        - redis
+    terminals:
+      tasks:
+        - test_1
+        - test_2
+        - test_3
+  palette: hacker
 tasks:
   db:
     type: docker
@@ -101,12 +103,13 @@ The task runner supports searching for a pattern in the task output to
 signal its completion. This way you can start a dependent task after the pattern
 shows up in the task output.
 
-Tasks are chained through dependencies. 
+Tasks are chained through dependencies.
 The first tasks to run are the ones without dependencies.
 If you declare one or more dependencies, the task will not run until all the dependencies are either:
 
 - *completed* (i.e. the task finished executing), by default
-- _the completion pattern is matched_ (the regex pattern matched a line of the task output), if you set a **completion_pattern**
+- _the completion pattern is matched_ (the regex pattern matched a line of the task output), if you set a *
+  *completion_pattern**
 - _launched_, if you set the **run_mode** to `indefinite`
 
 ## GUI
@@ -124,10 +127,18 @@ and for each pane you can set the tasks that belong to it and the maximum number
 The options in **bold** are mandatory, while the others can be omitted.
 
 ### YAML Configuration file
+
 | Option               | Description                                                                    |
 |----------------------|--------------------------------------------------------------------------------|
 | **tasks** _(object)_ | a mapping between task names and the [task configuration](#task_configuration) |
-| **gui** _(object)_   | a mapping between pane names and the [pane configuration](#pane_configuration) |
+| gui _(object)_       | the [gui configuration](#gui_configuration)                                    |
+
+#### <a name="gui_configuration"></a> GUI configuration
+
+| Option             | Description                                                                    |
+|--------------------|--------------------------------------------------------------------------------|
+| palette _(string)_ | apply a specific color palette (see [available palettes](#color_palettes))     |
+| panes _(object)_   | a mapping between pane names and the [pane configuration](#pane_configuration) |
 
 #### <a name="pane_configuration"></a> Pane configuration
 
@@ -167,3 +178,13 @@ The options in **bold** are mandatory, while the others can be omitted.
 | environment _(object)_        | env variables to be passed to the docker container                                          |
 | working_directory _(string)_  | a working directory for the docker command to be run from                                   |
 | stop_at_exit _(boolean)_      | will stop the container when the task is closed                                             |
+
+### <a name="color_palettes"></a> Available color palettes
+
+- darcula (default)
+- monokai
+- kimbie-dark
+- solarized-dark
+- hacker
+
+We're sorry to announce here that we're against light themes. If you really

@@ -1,22 +1,21 @@
 #!/usr/bin/env python
 import argparse
-import sys
 import traceback
-from logging.handlers import QueueHandler
 from multiprocessing import Queue
-from tinyioc import register_instance
+from tinyioc import register_singleton
 
+from jorun.palette.hacker import HackerColorPalette
+from jorun.palette.kimbie_dark import KimbieDarkColorPalette
+from jorun.palette.solarized_dark import SolarizedDarkColorPalette
 from jorun.runner_process import RunnerProcess
 from .palette.base import BaseColorPalette
 from .palette.darcula import DarculaColorPalette
+from .palette.monokai import MonokaiColorPalette
 from .ui.application import UiApplication
-from .handler.group import GroupTaskHandler
-from .handler.docker import DockerTaskHandler
-from .handler.shell import ShellTaskHandler
 
-from .configuration import load_config, AppConfiguration
-from .types.task import TasksConfiguration
-from .logger import logger, NewlineStreamHandler
+from .configuration import load_config
+from .types.task import TasksConfiguration, GuiConfiguration
+from .logger import logger
 
 parser = argparse.ArgumentParser(prog="jorun", description="A smart task runner", add_help=True)
 
@@ -33,11 +32,17 @@ task_streams_queue = Queue()
 
 ui_application: UiApplication
 
+palettes = {
+    DarculaColorPalette.name: DarculaColorPalette,
+    MonokaiColorPalette.name: MonokaiColorPalette,
+    KimbieDarkColorPalette.name: KimbieDarkColorPalette,
+    SolarizedDarkColorPalette.name: SolarizedDarkColorPalette,
+    HackerColorPalette.name: HackerColorPalette
+}
+
 
 def main():
     global program_arguments, ui_application
-
-    register_instance(DarculaColorPalette(), register_for=BaseColorPalette)
 
     program_arguments = parser.parse_args()
     logger.setLevel(program_arguments.level)
@@ -52,15 +57,17 @@ def main():
     if not tasks_config:
         raise RuntimeError("No tasks to run found")
 
-    gui_config = config.get("gui")
+    gui_config: GuiConfiguration = config.get("gui")
+
+    palette = (gui_config or {}).get("palette", "darcula")
+    register_singleton(palettes.get(palette, palettes["darcula"]), register_for=BaseColorPalette)
+
     show_gui = not program_arguments.no_gui and (program_arguments.gui or gui_config)
 
     if show_gui:
         logger.debug("Using graphical interface")
-        log_handler = QueueHandler(task_streams_queue)
     else:
         logger.debug("Using console output")
-        log_handler = NewlineStreamHandler(sys.stdout)
 
     tasks_thread = RunnerProcess(tasks_config, program_arguments, show_gui, task_streams_queue)
     tasks_thread.start()
@@ -69,7 +76,7 @@ def main():
         if show_gui:
             ui_tasks = [t_name for t_name, t_val in missing_tasks.items() if t_val["type"] != "group"]
 
-            ui_application = UiApplication(ui_tasks, task_streams_queue, gui_config)
+            ui_application = UiApplication(ui_tasks, task_streams_queue, gui_config['panes'])
             ui_application.start_ui()
         else:
             tasks_thread.join()
