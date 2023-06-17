@@ -186,5 +186,3 @@ The options in **bold** are mandatory, while the others can be omitted.
 - kimbie-dark
 - solarized-dark
 - hacker
-
-We're sorry to announce here that we're against light themes. If you really
