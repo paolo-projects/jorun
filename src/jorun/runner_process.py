@@ -12,6 +12,7 @@ import traceback
 
 from tinyioc import module, IocModule, register_instance, unregister_service
 
+from . import constants
 from .configuration import AppConfiguration
 from .handler.docker import DockerTaskHandler
 from .handler.group import GroupTaskHandler
@@ -53,6 +54,8 @@ class RunnerProcess(multiprocessing.Process):
                  output_queue: Optional[multiprocessing.Queue], commands_queue: Optional[multiprocessing.Queue],
                  task_updates_queue: Optional[multiprocessing.Queue]):
         super(RunnerProcess, self).__init__()
+
+        logger.setLevel(arguments.level)
 
         self._show_gui = is_gui
         self._config = configuration
@@ -163,7 +166,7 @@ class RunnerProcess(multiprocessing.Process):
                         self._task_updates_queue.put(TaskStatusMessage(task=c.task, status=TaskStatus.STOPPED))
             except Empty:
                 pass
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(constants.COMMANDS_DEQUEUE_INTERVAL)
 
     def run(self) -> None:
         register_instance(AppConfiguration([
@@ -192,7 +195,7 @@ class RunnerProcess(multiprocessing.Process):
                     self._loop.call_soon_threadsafe(self._loop.stop)
                     break
 
-                await asyncio.sleep(0.15)
+                await asyncio.sleep(constants.TERMINATION_CHECK_INTERVAL)
 
         try:
             self._run_missing_tasks()

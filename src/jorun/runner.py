@@ -12,14 +12,13 @@ from typing import Optional, Callable, List, Union
 import psutil
 from tinyioc import get_service
 
+from . import constants
 from .handler.base import BaseTaskHandler
 from .logger import logger
 from .scanner import AsyncScanner
 from .types.options import TaskOptions
 from .types.task import Task
 from .configuration import AppConfiguration
-
-OUTPUT_READ_INTERVAL = 0.015
 
 
 class TaskRunner:
@@ -73,6 +72,7 @@ class TaskRunner:
         return self._task["name"]
 
     def _on_stop(self):
+        # noinspection PyTypedDict
         self._handler.on_exit(self._task[self._handler.task_type], self._process)
 
     def stop(self, timeout=1):
@@ -89,31 +89,10 @@ class TaskRunner:
 
             init_time = time.time()
             while psutil.pid_exists(pid) and time.time() < init_time + timeout:
-                time.sleep(0.1)
+                time.sleep(constants.PROCESS_KILL_POLLING_INTERVAL)
 
             if psutil.pid_exists(pid):
                 logger.debug(f"Process {self.name} still alive after {timeout}s timeout. Sending SIGKILL")
-                if platform.system() == "Windows":
-                    os.kill(pid, signal.CTRL_BREAK_EVENT)
-                else:
-                    os.kill(pid, signal.SIGKILL)
-
-    async def stop_async(self, timeout=1):
-        if self._process and self._process.returncode is None:
-            logger.debug(f"async: Process {self.name} is alive. Killing it")
-
-            self._on_stop()
-            pid = self._process.pid
-
-            if platform.system() == "Windows":
-                os.kill(pid, signal.CTRL_C_EVENT)
-            else:
-                os.kill(pid, signal.SIGTERM)
-
-            await asyncio.wait_for(self._process.wait(), timeout)
-
-            if psutil.pid_exists(pid):
-                logger.debug(f"async: Process {self.name} still alive after {timeout}s timeout. Sending SIGKILL")
                 if platform.system() == "Windows":
                     os.kill(pid, signal.CTRL_BREAK_EVENT)
                 else:
@@ -126,6 +105,7 @@ class TaskRunner:
 
             stderr_redirect = t.get('pattern_in_stderr', False)
 
+            # noinspection PyTypedDict
             task_options: Optional[TaskOptions] = t.get(self._handler.task_type)
 
             self._process = await self._handler.execute(task_options, self._completion_callback,

@@ -1,6 +1,7 @@
 import platform
 import subprocess
 import sys
+import os
 
 
 def get_process_group_args():
@@ -11,7 +12,8 @@ def get_process_group_args():
     """
     kwargs = {}
     if platform.system() == "Windows":
-        kwargs.update(creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+        # subprocess.DETACHED_PROCESS should not be needed
+        kwargs.update(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
     elif sys.version_info < (3, 2):
         kwargs.update(preexec_fn=os.setsid)
     else:
