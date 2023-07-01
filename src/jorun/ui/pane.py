@@ -3,8 +3,10 @@ from typing import Optional, List, Dict
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QSplitter
-from tinyioc import inject
+from tinyioc import get_service
 
+from ..logger import logger
+from ..messaging.message import TaskStatusMessage
 from ..palette.base import BaseColorPalette
 from .task_panel import TaskPanel
 
@@ -17,9 +19,10 @@ class TasksPane(QWidget):
     _task_widgets: Dict[str, TaskPanel]
     _splitters: List[QSplitter]
 
-    @inject()
-    def __init__(self, parent: Optional[QWidget], tasks: List[str], palette: BaseColorPalette, columns: int = 3):
+    def __init__(self, parent: Optional[QWidget], tasks: List[str], columns: int = 3):
         super(TasksPane, self).__init__(parent)
+
+        palette: BaseColorPalette = get_service(BaseColorPalette)
 
         self._tasks = tasks
         self._total_columns = columns
@@ -57,3 +60,7 @@ class TasksPane(QWidget):
     def dispatch_log_record(self, record: LogRecord):
         if record.subprocess in self._task_widgets:
             self._task_widgets[record.subprocess].append_text(record)
+
+    def dispatch_task_status(self, status: TaskStatusMessage):
+        if status.task in self._task_widgets:
+            self._task_widgets[status.task].update_status(status.status)

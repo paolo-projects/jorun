@@ -1,9 +1,10 @@
 import multiprocessing
-import queue
 import sys
+import typing
+from collections import OrderedDict
 from logging.handlers import QueueHandler
 from multiprocessing.connection import Connection
-from threading import Thread
+from queue import Empty
 from typing import List, Set, Dict, Optional
 import asyncio
 import logging
@@ -15,6 +16,7 @@ from .configuration import AppConfiguration
 from .handler.docker import DockerTaskHandler
 from .handler.group import GroupTaskHandler
 from .handler.shell import ShellTaskHandler
+from .messaging.message import TaskCommandMessage, TaskCommand, TaskStatusMessage, TaskStatus
 from .types.task import Task
 from .runner import TaskRunner
 from .logger import logger, NewlineStreamHandler
@@ -32,26 +34,32 @@ class RunnerProcess(multiprocessing.Process):
 
     _config: Dict[str, Task]
     _arguments: any
-    _running_tasks: List[TaskRunner]
+    _running_tasks: typing.OrderedDict[str, TaskRunner]
     _async_tasks: Set[asyncio.Task]
 
     _missing_tasks: Dict[str, Task]
     _completed_tasks: Set[str]
 
-    _queue: multiprocessing.Queue
+    _proc_output_queue: multiprocessing.Queue
+    _commands_queue: multiprocessing.Queue
+    _task_updates_queue: multiprocessing.Queue
+
     _log_handler: logging.Handler
     _show_gui: bool
 
     _loop: asyncio.AbstractEventLoop
 
     def __init__(self, configuration: Dict[str, Task], arguments: any, is_gui: bool,
-                 output_queue: Optional[multiprocessing.Queue]):
+                 output_queue: Optional[multiprocessing.Queue], commands_queue: Optional[multiprocessing.Queue],
+                 task_updates_queue: Optional[multiprocessing.Queue]):
         super(RunnerProcess, self).__init__()
 
         self._show_gui = is_gui
         self._config = configuration
         self._arguments = arguments
-        self._queue = output_queue
+        self._proc_output_queue = output_queue
+        self._commands_queue = commands_queue
+        self._task_updates_queue = task_updates_queue
 
         self._pipe_recv, self._pipe_emit = multiprocessing.Pipe()
 
@@ -66,39 +74,96 @@ class RunnerProcess(multiprocessing.Process):
         for task in tasks_to_run:
             self._run_task(task)
 
+    def task_completed_callback(self, task_name: str, launch_deps: bool = False):
+        def cb():
+            logger.debug(f"Task {task_name} completed")
+            self._completed_tasks.add(task_name)
+            self._task_updates_queue.put(TaskStatusMessage(task=task_name, status=TaskStatus.COMPLETED))
+
+            if launch_deps:
+                logger.debug(f"Launching task {task_name} dependencies")
+                self._run_missing_tasks()
+
+        return cb
+
     def _run_task(self, task: Task):
         t = TaskRunner(task, self._arguments.file_output, self._arguments.level,
                        self._log_handler)
-        self._running_tasks.append(t)
-
-        def cb():
-            logger.debug(f"Task {task['name']} completed")
-            self._completed_tasks.add(task["name"])
-
-            logger.debug(f"Launching task {task['name']} dependencies")
-            self._run_missing_tasks()
+        self._running_tasks[task["name"]] = t
 
         logger.debug(f"Running task {task['name']}")
-        async_t = self._loop.create_task(t.start(cb))
+        async_t = self._loop.create_task(t.start(self.task_completed_callback(task['name'], launch_deps=True)))
         self._async_tasks.add(async_t)
-        async_t.add_done_callback(self._async_tasks.discard)
+
+        def async_task_done(as_t):
+            self._task_updates_queue.put(TaskStatusMessage(task=task["name"], status=TaskStatus.STOPPED))
+            self._async_tasks.discard(as_t)
+            del self._running_tasks[task["name"]]
+
+        async_t.add_done_callback(async_task_done)
+        self._task_updates_queue.put(TaskStatusMessage(task=task["name"], status=TaskStatus.STARTED))
 
     def _cancel_tasks(self):
         logger.debug("Killing running tasks...")
-        for i in reversed(range(len(self._running_tasks))):
-            t = self._running_tasks[i]
+        for k in reversed(list(self._running_tasks.keys())):
+            t = self._running_tasks[k]
             logger.debug(f"Killing task {t.name}")
             try:
                 t.stop()
             except:
                 pass
             finally:
-                self._running_tasks.pop(i)
+                del self._running_tasks[k]
 
     def _cancel_async_tasks(self):
         logger.debug("Killing async tasks...")
         for t in self._async_tasks.copy():
             t.cancel()
+
+    async def _poll_commands(self):
+        while True:
+            try:
+                c: TaskCommandMessage = self._commands_queue.get(False)
+                logger.debug(f"Received command {c}")
+
+                task = self._running_tasks.get(c.task)
+
+                logger.debug(f"Found task {task}")
+
+                # Task should not be running when restarting it
+                if c.command == TaskCommand.START and not task:
+                    logger.debug(f"Starting task {task}")
+                    task_def = self._config[c.task]
+
+                    if task_def:
+                        t = TaskRunner(task_def, self._arguments.file_output, self._arguments.level,
+                                       self._log_handler)
+                        async_t = self._loop.create_task(t.start(None))
+                        self._async_tasks.add(async_t)
+                        self._running_tasks[c.task] = t
+
+                        def async_task_done(as_t):
+                            self._task_updates_queue.put(TaskStatusMessage(task=c.task, status=TaskStatus.STOPPED))
+                            self._async_tasks.discard(as_t)
+
+                            if c.task in self._running_tasks:
+                                del self._running_tasks[c.task]
+
+                        async_t.add_done_callback(async_task_done)
+                        self._task_updates_queue.put(TaskStatusMessage(task=c.task, status=TaskStatus.STARTED))
+                # Task should be running if we want to stop it
+                elif c.command == TaskCommand.STOP and task:
+                    logger.debug(f"Stopping task {task}")
+                    try:
+                        task.stop()
+                    except:
+                        traceback.print_exc()
+                    finally:
+                        logger.debug("Stopped. Sending new status STOPPED")
+                        self._task_updates_queue.put(TaskStatusMessage(task=c.task, status=TaskStatus.STOPPED))
+            except Empty:
+                pass
+            await asyncio.sleep(0.05)
 
     def run(self) -> None:
         register_instance(AppConfiguration([
@@ -107,8 +172,9 @@ class RunnerProcess(multiprocessing.Process):
             GroupTaskHandler()
         ]))
 
-        self._log_handler = QueueHandler(self._queue) if self._show_gui else NewlineStreamHandler(sys.stdout)
-        self._running_tasks = []
+        self._log_handler = QueueHandler(self._proc_output_queue) if self._show_gui else NewlineStreamHandler(
+            sys.stdout)
+        self._running_tasks = OrderedDict()
         self._async_tasks = set()
         self._missing_tasks = self._config.copy()
         self._completed_tasks = set()
@@ -126,7 +192,7 @@ class RunnerProcess(multiprocessing.Process):
                     self._loop.call_soon_threadsafe(self._loop.stop)
                     break
 
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(0.15)
 
         try:
             self._run_missing_tasks()
@@ -134,6 +200,10 @@ class RunnerProcess(multiprocessing.Process):
             term_task = self._loop.create_task(periodic_termination_checker())
             self._async_tasks.add(term_task)
             term_task.add_done_callback(self._async_tasks.discard)
+
+            commands_task = self._loop.create_task(self._poll_commands())
+            self._async_tasks.add(commands_task)
+            commands_task.add_done_callback(self._async_tasks.discard)
 
             self._loop.run_forever()
         except KeyboardInterrupt:

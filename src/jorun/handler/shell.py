@@ -7,6 +7,7 @@ from typing import Callable, Optional, List, Union, Dict
 from ..types.options import TaskOptions
 from .base import BaseTaskHandler
 from ..logger import logger
+from ..utils import get_process_group_args
 
 
 class ShellTask(TaskOptions):
@@ -43,7 +44,8 @@ class ShellTaskHandler(BaseTaskHandler):
                 env=env_vars,
                 stdout=subprocess.PIPE,
                 stderr=stderr_file,
-                stdin=subprocess.DEVNULL)
+                stdin=subprocess.DEVNULL,
+                **get_process_group_args())
         else:
             process = await asyncio.create_subprocess_exec(
                 options["command"][0],
@@ -52,7 +54,8 @@ class ShellTaskHandler(BaseTaskHandler):
                 env=env_vars,
                 stdout=subprocess.PIPE,
                 stderr=stderr_file,
-                stdin=subprocess.DEVNULL)
+                stdin=subprocess.DEVNULL,
+                **get_process_group_args())
 
         return process
 

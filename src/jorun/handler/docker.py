@@ -6,6 +6,7 @@ from typing import Callable, Optional, Dict, List
 from ..handler.base import BaseTaskHandler
 from ..logger import logger
 from ..types.options import TaskOptions
+from ..utils import get_process_group_args
 
 
 class DockerTask(TaskOptions):
@@ -51,13 +52,16 @@ class DockerTaskHandler(BaseTaskHandler):
             cwd=options.get("working_directory"),
             stdout=subprocess.PIPE,
             stderr=stderr_file,
-            stdin=subprocess.DEVNULL)
+            stdin=subprocess.DEVNULL,
+            **get_process_group_args())
 
         self._stop_on_exit = options.get("stop_at_exit", False)
         return process
 
     def on_exit(self, options: DockerTask, process: Process):
         if self._stop_on_exit:
+            logger.info(f"Stopping docker container {options['container_name']}")
+            logger.debug(f"Stop command: {' '.join(['docker','stop', options['container_name']])}")
             subprocess.run([
                 "docker",
                 "stop",

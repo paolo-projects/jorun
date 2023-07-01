@@ -3,9 +3,14 @@ from logging import LogRecord
 from typing import Optional
 
 from PySide6.QtCore import Slot
-from PySide6.QtWidgets import QGroupBox, QVBoxLayout, QWidget, QPlainTextEdit, QLabel, QLineEdit, QSizePolicy
-from tinyioc import inject
+from PySide6.QtWidgets import QGroupBox, QVBoxLayout, QWidget, QPlainTextEdit, QLabel, QLineEdit, QSizePolicy, \
+    QPushButton, QHBoxLayout, QStyle
+from tinyioc import get_service
 
+from .command_handler import TaskCommandHandler
+from .utils import icon_from_standard_pixmap
+from ..logger import logger
+from ..messaging.message import TaskStatus, TaskCommand
 from ..palette.base import BaseColorPalette
 
 from .. import constants
@@ -15,21 +20,28 @@ class TaskPanel(QGroupBox):
     _layout: QVBoxLayout
     _actions_group_widget: QWidget
     _actions_group_layout: QVBoxLayout
+    _task_header_layout: QHBoxLayout
+    _task_header_widget: QWidget
     _output_stream_edit_text: QPlainTextEdit
 
     _output_stream: str
 
     _task_name: str
     _task_label: QLabel
+    _task_command_btn: QPushButton
 
     _filter_edit_text: QLineEdit
 
-    @inject()
-    def __init__(self, parent: Optional[QWidget], task_name: str, palette: BaseColorPalette):
+    _current_status: TaskStatus
+
+    def __init__(self, parent: Optional[QWidget], task_name: str):
         super(TaskPanel, self).__init__(parent)
+
+        palette: BaseColorPalette = get_service(BaseColorPalette)
 
         self._task_name = task_name
         self._output_stream = ""
+        self._current_status = TaskStatus.STARTED
 
         self._layout = QVBoxLayout(self)
         self.setLayout(self._layout)
@@ -46,14 +58,33 @@ class TaskPanel(QGroupBox):
 
         self._layout.addWidget(self._actions_group_widget)
 
-        self._task_label = QLabel(self)
+        self._task_header_widget = QWidget(self)
+        self._actions_group_layout.addWidget(self._task_header_widget)
+        self._task_header_layout = QHBoxLayout(self._task_header_widget)
+        self._task_header_layout.setContentsMargins(0, 0, 0, 0)
+
+        self._task_label = QLabel(self._task_header_widget)
         self._task_label.setText(self._task_name)
         self._task_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._task_label.setStyleSheet(f"""
             color: {palette.foreground};
             font-weight: bold;
         """)
-        self._actions_group_layout.addWidget(self._task_label)
+        self._task_header_layout.addWidget(self._task_label)
+
+        self._task_command_btn = QPushButton(self._task_header_widget)
+
+        self._task_command_btn.setIcon(
+            icon_from_standard_pixmap(self.style(), QStyle.StandardPixmap.SP_MediaPlay, palette.foreground))
+        self._task_command_btn.setStyleSheet(f"""
+            color: {palette.foreground};
+            background-color: {palette.background};
+            cursor: pointer;
+        """)
+        self._task_command_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self._task_command_btn.setFixedSize(24, 24)
+        self._task_command_btn.clicked.connect(self.task_state_command_click)
+        self._task_header_layout.addWidget(self._task_command_btn)
 
         self._filter_edit_text = QLineEdit(self)
         self._filter_edit_text.setPlaceholderText("Filter")
@@ -94,6 +125,29 @@ class TaskPanel(QGroupBox):
             self._output_stream_edit_text.verticalScrollBar().setValue(
                 min(self._output_stream_edit_text.verticalScrollBar().maximum(),
                     max(self._output_stream_edit_text.verticalScrollBar().minimum(), previous_scrollbar_pos)))
+
+    @Slot()
+    def task_state_command_click(self):
+        command_handler: TaskCommandHandler = get_service(TaskCommandHandler)
+        command = TaskCommand.STOP
+        if self._current_status == TaskStatus.STOPPED:
+            command = TaskCommand.START
+
+        command_handler.dispatch(self._task_name, command)
+
+    def update_status(self, status: TaskStatus):
+        logger.debug(f"task_panel.update_status: Update status for task {self._task_name}: {status}")
+        palette: BaseColorPalette = get_service(BaseColorPalette)
+
+        if status == TaskStatus.STOPPED:
+            self._task_command_btn.setIcon(
+                icon_from_standard_pixmap(self.style(), QStyle.StandardPixmap.SP_MediaPlay, palette.foreground))
+        elif status == TaskStatus.STARTED:
+            self._task_command_btn.setIcon(
+                icon_from_standard_pixmap(self.style(), QStyle.StandardPixmap.SP_MediaStop, palette.foreground))
+
+        self._task_command_btn.update()
+        self._current_status = status
 
     def _update_output_edit_text(self):
         filter_input = self._filter_edit_text.text()

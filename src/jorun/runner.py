@@ -10,7 +10,7 @@ from logging import Logger
 from typing import Optional, Callable, List, Union
 
 import psutil
-from tinyioc import inject
+from tinyioc import get_service
 
 from .handler.base import BaseTaskHandler
 from .logger import logger
@@ -35,9 +35,10 @@ class TaskRunner:
     _logger: Logger
     _err_logger: Logger
 
-    @inject()
     def __init__(self, task: Task, file_output_dir: Optional[str], log_level: Union[int, str],
-                 log_handler: logging.Handler, configuration: AppConfiguration):
+                 log_handler: logging.Handler):
+        configuration: AppConfiguration = get_service(AppConfiguration)
+
         self._task = task
         self._handlers = configuration.handlers
         self._process = None
@@ -86,10 +87,9 @@ class TaskRunner:
             else:
                 os.kill(pid, signal.SIGTERM)
 
-            timeout_left = timeout
-            while timeout_left > 0 and psutil.pid_exists(pid):
-                time.sleep(0.2)
-                timeout_left -= 0.2
+            init_time = time.time()
+            while psutil.pid_exists(pid) and time.time() < init_time + timeout:
+                time.sleep(0.1)
 
             if psutil.pid_exists(pid):
                 logger.debug(f"Process {self.name} still alive after {timeout}s timeout. Sending SIGKILL")
@@ -98,7 +98,28 @@ class TaskRunner:
                 else:
                     os.kill(pid, signal.SIGKILL)
 
-    async def start(self, completion_callback: Callable):
+    async def stop_async(self, timeout=1):
+        if self._process and self._process.returncode is None:
+            logger.debug(f"async: Process {self.name} is alive. Killing it")
+
+            self._on_stop()
+            pid = self._process.pid
+
+            if platform.system() == "Windows":
+                os.kill(pid, signal.CTRL_C_EVENT)
+            else:
+                os.kill(pid, signal.SIGTERM)
+
+            await asyncio.wait_for(self._process.wait(), timeout)
+
+            if psutil.pid_exists(pid):
+                logger.debug(f"async: Process {self.name} still alive after {timeout}s timeout. Sending SIGKILL")
+                if platform.system() == "Windows":
+                    os.kill(pid, signal.CTRL_BREAK_EVENT)
+                else:
+                    os.kill(pid, signal.SIGKILL)
+
+    async def start(self, completion_callback: Optional[Callable]):
         try:
             self._completion_callback = completion_callback
             t = self._task

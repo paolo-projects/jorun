@@ -12,7 +12,8 @@ class GroupTaskHandler(BaseTaskHandler):
 
     async def execute(self, options: Optional[TaskOptions], completion_callback: Callable, stderr_redirect: bool) \
             -> Optional[Process]:
-        completion_callback()
+        if completion_callback:
+            completion_callback()
         return None
 
     def on_exit(self, options: TaskOptions, process: Process):

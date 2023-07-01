@@ -3,11 +3,13 @@ from typing import Dict, List, Optional
 
 from PySide6.QtCore import Slot
 from PySide6.QtWidgets import QMainWindow, QTabWidget
-from tinyioc import inject
+from tinyioc import get_service
 
 from .data_signals import DataUpdateSignalEmitter, MainWindowSignals
 from .pane import TasksPane
 from .. import constants
+from ..logger import logger
+from ..messaging.message import TaskStatusMessage
 from ..palette.base import BaseColorPalette
 from ..types.task import PaneConfiguration
 
@@ -17,9 +19,10 @@ class MainWindow(QMainWindow, DataUpdateSignalEmitter):
     _panes: List[TasksPane]
     signals = MainWindowSignals()
 
-    @inject()
-    def __init__(self, tasks: List[str], palette: BaseColorPalette, gui_config: Optional[Dict[str, PaneConfiguration]]):
+    def __init__(self, tasks: List[str], gui_config: Optional[Dict[str, PaneConfiguration]]):
         super(MainWindow, self).__init__()
+
+        palette: BaseColorPalette = get_service(BaseColorPalette)
 
         self.signals.app_terminated.connect(self.close)
         self._panes = []
@@ -73,15 +76,24 @@ class MainWindow(QMainWindow, DataUpdateSignalEmitter):
             self._panes.append(extra_pane)
 
         self.signals.data_received.connect(self._handle_stream_record)
+        self.signals.task_status_received.connect(self._handle_task_status)
 
-    @Slot()
+    @Slot(LogRecord)
     def _handle_stream_record(self, record: LogRecord):
         for p in self._panes:
             p.dispatch_log_record(record)
 
+    @Slot(TaskStatusMessage)
+    def _handle_task_status(self, status: TaskStatusMessage):
+        for p in self._panes:
+            p.dispatch_task_status(status)
+
     # noinspection PyUnresolvedReferences
     def dispatch_stream_record(self, record: LogRecord):
         self.signals.data_received.emit(record)
+
+    def dispatch_task_status(self, status: TaskStatusMessage):
+        self.signals.task_status_received.emit(status)
 
     def dispatch_app_termination(self):
         self.signals.app_terminated.emit()

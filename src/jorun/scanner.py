@@ -53,22 +53,26 @@ class AsyncScanner:
                 if line_b is not None:
                     line = line_b.decode('utf-8', errors='ignore')
                     self._logger.info(line, extra={'subprocess': task_name})
-                    if reg.match(line) and self._completion_callback:
+                    if reg.match(line):
                         pattern_matched = True
 
-                        self._completion_callback()
-                        self._completion_callback = None
+                        if self._completion_callback:
+                            self._completion_callback()
+                            self._completion_callback = None
+
                         return await self._print_stdout(task_name)
 
             if not pattern_matched:
                 while line_b := await self._process.stdout.readline():
                     line = line_b.decode('utf-8', errors='ignore')
                     self._logger.info(line, extra={'subprocess': task_name})
-                    if reg.match(line) and self._completion_callback:
+                    if reg.match(line):
                         pattern_matched = True
 
-                        self._completion_callback()
-                        self._completion_callback = None
+                        if self._completion_callback:
+                            self._completion_callback()
+                            self._completion_callback = None
+
                         return await self._print_stdout(task_name)
         except Exception:
             pass

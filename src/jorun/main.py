@@ -2,12 +2,13 @@
 import argparse
 import traceback
 from multiprocessing import Queue
-from tinyioc import register_singleton
+from tinyioc import register_singleton, register_instance
 
 from jorun.palette.hacker import HackerColorPalette
 from jorun.palette.kimbie_dark import KimbieDarkColorPalette
 from jorun.palette.solarized_dark import SolarizedDarkColorPalette
 from jorun.runner_process import RunnerProcess
+from jorun.ui.command_handler import TaskCommandHandler
 from .palette.base import BaseColorPalette
 from .palette.darcula import DarculaColorPalette
 from .palette.monokai import MonokaiColorPalette
@@ -29,6 +30,8 @@ parser.add_argument("--no-gui", help="Force running without the graphical interf
 program_arguments: argparse.Namespace
 
 task_streams_queue = Queue()
+task_messages_queue = Queue()
+task_commands_queue = Queue()
 
 ui_application: UiApplication
 
@@ -62,6 +65,8 @@ def main():
     palette = (gui_config or {}).get("palette", "darcula")
     register_singleton(palettes.get(palette, palettes["darcula"]), register_for=BaseColorPalette)
 
+    register_instance(TaskCommandHandler(task_commands_queue))
+
     show_gui = not program_arguments.no_gui and (program_arguments.gui or gui_config)
 
     if show_gui:
@@ -69,14 +74,16 @@ def main():
     else:
         logger.debug("Using console output")
 
-    tasks_thread = RunnerProcess(tasks_config, program_arguments, show_gui, task_streams_queue)
+    tasks_thread = RunnerProcess(tasks_config, program_arguments, show_gui, task_streams_queue, task_commands_queue,
+                                 task_messages_queue)
     tasks_thread.start()
 
     try:
         if show_gui:
             ui_tasks = [t_name for t_name, t_val in missing_tasks.items() if t_val["type"] != "group"]
 
-            ui_application = UiApplication(ui_tasks, task_streams_queue, gui_config['panes'])
+            ui_application = UiApplication(ui_tasks, task_streams_queue, task_messages_queue, task_commands_queue,
+                                           gui_config['panes'])
             ui_application.start_ui()
         else:
             tasks_thread.join()
