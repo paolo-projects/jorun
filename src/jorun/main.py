@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 import argparse
+import multiprocessing
 import traceback
 from multiprocessing import Queue
 from tinyioc import register_singleton, register_instance
 
-from jorun.palette.hacker import HackerColorPalette
-from jorun.palette.kimbie_dark import KimbieDarkColorPalette
-from jorun.palette.solarized_dark import SolarizedDarkColorPalette
-from jorun.runner_process import RunnerProcess
-from jorun.ui.command_handler import TaskCommandHandler
+from .palette.hacker import HackerColorPalette
+from .palette.kimbie_dark import KimbieDarkColorPalette
+from .palette.solarized_dark import SolarizedDarkColorPalette
+from .runner_process import RunnerProcess
+from .ui.command_handler import TaskCommandHandler
 from .palette.base import BaseColorPalette
 from .palette.darcula import DarculaColorPalette
 from .palette.monokai import MonokaiColorPalette
@@ -74,19 +75,21 @@ def main():
     else:
         logger.debug("Using console output")
 
-    tasks_thread = RunnerProcess(tasks_config, program_arguments, show_gui, task_streams_queue, task_commands_queue,
-                                 task_messages_queue)
-    tasks_thread.start()
+    term_recv, term_snd = multiprocessing.Pipe()
+
+    runner_process = RunnerProcess(tasks_config, program_arguments, show_gui, task_streams_queue, task_commands_queue,
+                                   task_messages_queue, term_snd)
+    runner_process.start()
 
     try:
         if show_gui:
             ui_tasks = [t_name for t_name, t_val in missing_tasks.items() if t_val["type"] != "group"]
 
             ui_application = UiApplication(ui_tasks, task_streams_queue, task_messages_queue, task_commands_queue,
-                                           gui_config['panes'])
+                                           gui_config['panes'], term_recv)
             ui_application.start_ui()
         else:
-            tasks_thread.join()
+            runner_process.join()
     except KeyboardInterrupt:
         logger.debug("Requested termination")
     except Exception as e:
@@ -97,7 +100,7 @@ def main():
             logger.debug("Quitting the UI")
             ui_application.stop_ui()
         logger.debug("Quitting the tasks")
-        tasks_thread.stop(10)
+        runner_process.stop(10)
 
     logger.debug("Terminated")
 

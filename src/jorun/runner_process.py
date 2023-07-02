@@ -50,9 +50,11 @@ class RunnerProcess(multiprocessing.Process):
 
     _loop: asyncio.AbstractEventLoop
 
+    _termination_pipe: Connection
+
     def __init__(self, configuration: Dict[str, Task], arguments: any, is_gui: bool,
                  output_queue: Optional[multiprocessing.Queue], commands_queue: Optional[multiprocessing.Queue],
-                 task_updates_queue: Optional[multiprocessing.Queue]):
+                 task_updates_queue: Optional[multiprocessing.Queue], termination_pipe: Connection):
         super(RunnerProcess, self).__init__()
 
         logger.setLevel(arguments.level)
@@ -65,6 +67,7 @@ class RunnerProcess(multiprocessing.Process):
         self._task_updates_queue = task_updates_queue
 
         self._pipe_recv, self._pipe_emit = multiprocessing.Pipe()
+        self._termination_pipe = termination_pipe
 
     def _run_missing_tasks(self):
         tasks_to_run: List[Task] = [t for t in self._missing_tasks.values() if
@@ -228,6 +231,8 @@ class RunnerProcess(multiprocessing.Process):
             self._loop.close()
 
         self._running = False
+        logger.debug("Sending termination to main process")
+        self._termination_pipe.send(1)
 
     def stop(self, timeout: Optional[float] = None):
         self._pipe_emit.send(1)

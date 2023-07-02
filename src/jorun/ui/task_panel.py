@@ -41,7 +41,7 @@ class TaskPanel(QGroupBox):
 
         self._task_name = task_name
         self._output_stream = ""
-        self._current_status = TaskStatus.STARTED
+        self._current_status = TaskStatus.STOPPED
 
         self._layout = QVBoxLayout(self)
         self.setLayout(self._layout)

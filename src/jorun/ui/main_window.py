@@ -8,7 +8,6 @@ from tinyioc import get_service
 from .data_signals import DataUpdateSignalEmitter, MainWindowSignals
 from .pane import TasksPane
 from .. import constants
-from ..logger import logger
 from ..messaging.message import TaskStatusMessage
 from ..palette.base import BaseColorPalette
 from ..types.task import PaneConfiguration

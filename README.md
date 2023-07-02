@@ -93,11 +93,11 @@ tasks:
       - test
 ```
 
-This sample YML file shows two task types you can run:
+This sample YML file shows three task types you can run:
 
 - **Shell**: a task launching a shell command
 - **Docker**: a task optimized for docker containers
-- **Group**: a task that groups other tasks (for parallel execution)
+- **Group**: a task that groups other tasks. Used when you have a lot of tasks with the same dependencies, to avoid writing all of them every time 
 
 The task runner supports searching for a pattern in the task output to
 signal its completion. This way you can start a dependent task after the pattern
@@ -107,10 +107,10 @@ Tasks are chained through dependencies.
 The first tasks to run are the ones without dependencies.
 If you declare one or more dependencies, the task will not run until all the dependencies are either:
 
-- *completed* (i.e. the task finished executing), by default
-- _the completion pattern is matched_ (the regex pattern matched a line of the task output), if you set a *
-  *completion_pattern**
-- _launched_, if you set the **run_mode** to `indefinite`
+- **completed** (i.e. the task finished executing), by default
+- **the completion pattern is matched** (the regex pattern matched a line of the task output), if you set a
+  **completion_pattern**
+- **launched**, if you set the **run_mode** to `indefinite`
 
 ## GUI
 
@@ -121,6 +121,38 @@ even filter the log rows.
 
 The **gui** section in the YML configuration is where you can specify the panes you want displayed,
 and for each pane you can set the tasks that belong to it and the maximum number of columns visible in the pane.
+
+For instance, let's say you have 10 tasks in which you have 4 databases, 4 REST services, and 2 queues.
+You then have this GUI configuration:
+
+```yml
+gui:
+  panes:
+    databases:
+      tasks:
+        - postgres
+        - redis
+        - mongo
+        - cassandra
+      columns: 2
+    services:
+      tasks:
+        - auth
+        - orders
+        - customers
+        - shipments
+      columns: 4
+    pubsub:
+      tasks:
+        - rabbitmq
+        - kafka
+      columns: 1
+  palette: hacker
+```
+
+The first pane will display the 4 databases in a resizable grid of 2 rows and 2 columns. The second
+pane will display the services in a single row of 4 columns. The last pane will
+display the two services in a single column of 2 rows.
 
 ## Reference
 

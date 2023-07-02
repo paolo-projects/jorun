@@ -1,5 +1,6 @@
 import sys
 import time
+from multiprocessing.connection import Connection
 from queue import Queue, Empty
 from threading import Thread
 from typing import List, Callable, Optional, Dict
@@ -31,9 +32,13 @@ class UiApplication:
     _dequeue_running: bool
 
     _trigger_close_handler: bool
+    _termination_pipe: Connection
+
+    _termination_listener_trd: Thread
 
     def __init__(self, tasks: List[str], task_streams_queue: Queue, task_status_queue: Queue,
-                 task_commands_queue: Queue, config: Optional[Dict[str, PaneConfiguration]]):
+                 task_commands_queue: Queue, config: Optional[Dict[str, PaneConfiguration]],
+                 termination_pipe: Connection):
         self._window = None
         self._trigger_close_handler = True
         self._config = config
@@ -41,10 +46,21 @@ class UiApplication:
         self._streams_queue = task_streams_queue
         self._task_status_queue = task_status_queue
         self._task_commands_queue = task_commands_queue
+        self._termination_pipe = termination_pipe
+        self._termination_listener_running = True
 
     def _app_quitting(self):
         self._dequeue_running = False
         self._stream_dequeue_thread.join()
+
+    def _termination_listen(self):
+        logger.debug("Started termination listener to watch for runner process termination")
+        try:
+            self._termination_pipe.recv()
+            logger.info("App terminated from runner process")
+            self._window.signals.app_terminated.emit()
+        except EOFError:
+            pass
 
     def start_ui(self):
         self._dequeue_running = True
@@ -54,6 +70,9 @@ class UiApplication:
 
         self._task_status_dequeue_thread = Thread(target=self._dequeue_task_statuses)
         self._task_status_dequeue_thread.start()
+
+        self._termination_listener_trd = Thread(target=self._termination_listen)
+        self._termination_listener_trd.start()
 
         self._run_ui_thread()
 
@@ -95,3 +114,5 @@ class UiApplication:
         if self._dequeue_running:
             self._dequeue_running = False
             self._stream_dequeue_thread.join()
+
+        self._app.quit()
